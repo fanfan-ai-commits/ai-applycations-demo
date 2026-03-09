@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>农业保险产品设计 AI 陪练</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col items-center py-10">
+
+    <div class="w-full max-w-4xl px-4">
+        <!-- 标题 -->
+        <header class="text-center mb-10">
+            <h1 class="text-3xl font-bold text-blue-600 mb-2">🌾 农业保险产品设计 (AI陪练版)</h1>
+            <p class="text-slate-500">设计合理的保险条款 (x, y)，诱导农户积极防范风险，实现保险公司利润最大化。</p>
+        </header>
+
+        <!-- 配置与输入区 -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <!-- 产品设计 -->
+            <div class="md:col-span-1 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-lg font-semibold mb-4 flex items-center">
+                    <span class="bg-blue-100 text-blue-600 py-1 px-2 rounded text-sm mr-2">1</span>
+                    保险公司产品设计
+                </h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">好收成时收取保费 (x)</label>
+                        <input type="number" id="premiumX" value="13" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="例如: 50">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">坏收成时赔付 (y)</label>
+                        <input type="number" id="indemnityY" value="36" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="例如: 50">
+                    </div>
+                    <div class="pt-2">
+                        <button id="runBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition flex justify-center items-center gap-2">
+                            <span>运行模拟</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模拟结果 -->
+            <div class="md:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col">
+                <h2 class="text-lg font-semibold mb-4 flex items-center">
+                    <span class="bg-green-100 text-green-600 py-1 px-2 rounded text-sm mr-2">2</span>
+                    博弈模拟结果
+                </h2>
+                
+                <!-- 统计概览 -->
+                <div class="grid grid-cols-3 gap-4 mb-6">
+                    <div class="bg-slate-50 p-3 rounded border border-slate-100 text-center">
+                        <div class="text-xs text-slate-500 uppercase tracking-wide">模拟次数</div>
+                        <div class="text-xl font-bold text-slate-800">20</div>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded border border-slate-100 text-center">
+                        <div class="text-xs text-slate-500 uppercase tracking-wide">AI 农户策略</div>
+                        <div id="aiStrategy" class="text-xl font-bold text-blue-600">-</div>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded border border-slate-100 text-center">
+                        <div class="text-xs text-slate-500 uppercase tracking-wide">公司总利润</div>
+                        <div id="totalProfit" class="text-xl font-bold text-green-600">-</div>
+                    </div>
+                </div>
+
+                <!-- 详细日志 -->
+                <div class="flex-1 bg-slate-900 text-green-400 font-mono text-sm p-4 rounded-lg overflow-y-auto max-h-[300px] custom-scrollbar" id="logContainer">
+                    <div class="text-slate-500">点击“运行模拟”开始实验...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI 思维过程 (可选展开) -->
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <details>
+                <summary class="cursor-pointer text-blue-600 font-semibold hover:text-blue-800">查看 AI 决策思维过程 (JSON)</summary>
+                <pre id="aiResponseJson" class="mt-4 p-4 bg-slate-50 rounded text-xs text-slate-600 overflow-x-auto">AI 的推理过程将显示在这里</pre>
+            </details>
+        </div>
+    </div>
+
+    <script>
+        // 配置
+        const API_KEY = 'sk-xxx';
+        const ENDPOINT = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+        const MODEL = 'qwen3-max';
+        
+        // DOM 元素
+        const runBtn = document.getElementById('runBtn');
+        const logContainer = document.getElementById('logContainer');
+        const aiStrategyEl = document.getElementById('aiStrategy');
+        const totalProfitEl = document.getElementById('totalProfit');
+        const aiJsonEl = document.getElementById('aiResponseJson');
+
+        // 游戏参数
+        const ROUNDS = 20;
+
+        // 辅助函数：向 AI API 发送请求
+        async function callAI(systemPrompt, userPrompt) {
+            try {
+                const response = await fetch(ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${API_KEY}`
+                    },
+                    body: JSON.stringify({
+                        model: MODEL,
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: userPrompt }
+                        ],
+                        temperature: 0.1 // 低温度以获得更确定的输出
+                    })
+                });
+                
+                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                const data = await response.json();
+                return data.choices[0].message.content;
+            } catch (error) {
+                console.error(error);
+                return `Error: ${error.message}`;
+            }
+        }
+
+        // 核心逻辑：构建 Prompt 并调用 AI
+        async function runSimulation() {
+            const x = parseFloat(document.getElementById('premiumX').value);
+            const y = parseFloat(document.getElementById('indemnityY').value);
+
+            if (isNaN(x) || isNaN(y)) {
+                alert("请输入有效的数字");
+                return;
+            }
+
+            // UI 更新
+            runBtn.disabled = true;
+            runBtn.innerHTML = `<span class="loader"></span> AI 决策中...`;
+            logContainer.innerHTML = '';
+            addLog(`🚀 启动模拟: 保费 x=${x}, 赔付 y=${y}`, 'blue');
+
+            // 1. 构建 System Prompt (设定角色和规则)
+            const systemPrompt = `你是一个农场主。你是一个理性的决策者，厌恶风险。
+你的效用函数为：U = sqrt(收入) - 防范损失
+收入取决于是否参保以及收成好坏。
+防范损失：积极防范 = 1，不防范 = 0。
+
+博弈规则：
+- 积极防范时：高收成(100)概率75%，低收成(4)概率25%
+- 不积极防范时：高收成(100)概率50%，低收成(4)概率50%
+- 参保：高收成交保费(100-x)，低收成拿赔付(4+y)
+- 不参保：高收成拿(100)，低收成拿(4)
+
+你的任务：根据给定的 x (保费) 和 y (赔付)，计算你在以下四种策略下的期望效用，并选择效用最高的策略。
+输出格式要求：必须严格返回一句JSON：{"strategy": "参保积极防范", "expected_utility": 8.5}。`;
+
+            // 2. 构建 User Prompt
+            const userPrompt = `当前保险产品设计：保费 x = ${x}, 赔付 y = ${y}。请计算并选择最优策略。`;
+
+            // 3. 调用 AI
+            addLog(`🤔 正在咨询 AI 农户策略...`);
+            const aiResultRaw = await callAI(systemPrompt, userPrompt);
+            
+            // 解析 AI 结果 (简单解析 JSON)
+            let aiStrategy = "未知";
+            let farmerUtility = 0;
+            try {
+                // 尝试提取 JSON
+                const jsonMatch = aiResultRaw.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const obj = JSON.parse(jsonMatch[0]);
+                    aiStrategy = obj.strategy;
+                    farmerUtility = obj.expected_utility;
+                }
+            } catch (e) {
+                console.error("解析AI返回失败", e);
+            }
+
+            // 显示 AI 思维
+            aiJsonEl.textContent = aiResultRaw;
+            addLog(`✅ AI 决策: ${aiStrategy} (效用: ${farmerUtility.toFixed(2)})`);
+
+            // 4. 计算保险公司收益
+            // 这里的概率取决于 AI 选择的策略
+            // 策略映射
+            let probLowHarvest = 0.25; // 默认积极防范
+            if (aiStrategy.includes("不积极") || aiStrategy.includes("不防范")) {
+                probLowHarvest = 0.5;
+            }
+
+            // 保险公司期望利润 (每一轮)
+            // 收入: 保费 x
+            // 支出: 赔付 y * 低收成概率
+            const profitPerRound = x - (y * probLowHarvest);
+            const totalProfit = profitPerRound * ROUNDS;
+
+            // 5. 模拟结果展示
+            addLog(`💰 保险公司期望利润: 每轮 ${profitPerRound.toFixed(2)} (x - y*P)`);
+            addLog(`📊 20轮总利润: ${totalProfit.toFixed(2)}`);
+
+            // 更新顶部卡片
+            aiStrategyEl.innerText = aiStrategy;
+            totalProfitEl.innerText = totalProfit.toFixed(0);
+
+            runBtn.disabled = false;
+            runBtn.innerHTML = `<span>运行模拟</span>`;
+        }
+
+        function addLog(message, color = 'green') {
+            const div = document.createElement('div');
+            div.className = `mb-1 text-${color}-400`;
+            div.innerText = `> ${message}`;
+            logContainer.appendChild(div);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        runBtn.addEventListener('click', runSimulation);
+    </script>
+</body>
+</html>

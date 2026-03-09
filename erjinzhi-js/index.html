@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 AI 二进制拼图 - 高中信息教学工具</title>
+    <meta name="description" content="一款专为高中生设计的二进制教学游戏，通过拖拽 Bit 块学习二进制与十进制转换，配合 AI 导师实时答疑。">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- 自定义样式 -->
+    <style>
+        * {
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #1a1a3e 70%, #0f0f23 100%);
+            background-attachment: fixed;
+            min-height: 100vh;
+        }
+        
+        /* Bit 块动画 */
+        .bit-block, .bit-option {
+            cursor: grab;
+            user-select: none;
+        }
+        
+        .bit-block:active, .bit-option:active {
+            cursor: grabbing;
+        }
+        
+        .bit-block:hover, .bit-option:hover {
+            transform: scale(1.08);
+        }
+        
+        /* 槽位动画 */
+        .slot {
+            transition: all 0.2s ease;
+        }
+        
+        .slot.drag-over {
+            background: rgba(59, 130, 246, 0.3);
+            border-color: #60a5fa;
+            transform: scale(1.05);
+        }
+        
+        .slot.filled {
+            animation: pop 0.3s ease;
+        }
+        
+        @keyframes pop {
+            0% { transform: scale(0.8); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        /* 聊天消息动画 */
+        .chat-message {
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Typing 指示器 */
+        .typing-indicator span {
+            animation: blink 1s infinite;
+        }
+        
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        .typing-indicator span:nth-child(4) {
+            animation-delay: 0.6s;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 0.2; }
+            50% { opacity: 1; }
+        }
+        
+        /* 成功发光效果 */
+        .success-glow {
+            animation: glow 0.5s ease-in-out 3;
+        }
+        
+        @keyframes glow {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(251, 191, 36, 0.5);
+            }
+            50% {
+                box-shadow: 0 0 40px rgba(251, 191, 36, 0.8);
+            }
+        }
+        
+        /* 通知动画 */
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -20px);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, 0);
+            }
+        }
+        
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(30, 41, 59, 0.5);
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(to bottom, #22d3ee, #a78bfa);
+            border-radius: 3px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(to bottom, #67e8f9, #c4b5fd);
+        }
+        
+        /* 触摸设备优化 */
+        .touch-device .slot {
+            min-height: 60px;
+        }
+        
+        .touch-device .bit-block {
+            min-width: 50px;
+            min-height: 50px;
+        }
+        
+        /* 响应式调整 */
+        @media (max-width: 768px) {
+            .slot {
+                width: 48px !important;
+                height: 64px !important;
+            }
+            
+            .bit-block {
+                width: 44px !important;
+                height: 44px !important;
+            }
+        }
+        
+        /* 暗色模式适配 */
+        @media (prefers-color-scheme: dark) {
+            /* 已经是暗色，无需额外处理 */
+        }
+        
+        /* 打印样式 */
+        @media print {
+            body {
+                background: white;
+                color: black;
+            }
+            
+            .no-print {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white">
+    <!-- 主容器 -->
+    <div id="app"></div>
+    
+    <!-- 加载提示 -->
+    <div id="loading" class="fixed inset-0 bg-[#1a1a2e] flex items-center justify-center z-50">
+        <div class="text-center">
+            <p class="text-xl bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent font-bold">加载中...</p>
+            <p class="text-sm text-slate-400 mt-2">正在初始化 AI 导师</p>
+        </div>
+    </div>
+    
+    <!-- 脚注 -->
+    <footer class="text-center py-6 text-slate-500 text-sm">
+        <span class="bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700">@fanfan.ai工作室</span>
+    </footer>
+    
+    <!-- 模块脚本加载 -->
+    <script src="js/config.js"></script>
+    <script src="js/ai-chat.js"></script>
+    <script src="js/hint-system.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/main.js"></script>
+    
+    <!-- 页面加载完成后隐藏加载提示 -->
+    <script>
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const loading = document.getElementById('loading');
+                if (loading) {
+                    loading.style.opacity = '0';
+                    loading.style.transition = 'opacity 0.3s ease';
+                    setTimeout(() => {
+                        loading.style.display = 'none';
+                    }, 300);
+                }
+            }, 500);
+        });
+    </script>
+</body>
+</html>
+

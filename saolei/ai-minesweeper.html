@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI知识扫雷</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'game-bg': '#1a1a2e',
+                        'board-bg': '#16213e',
+                        'cell-hidden': '#0f3460',
+                        'cell-revealed': '#e8e8e8',
+                        'life-start': '#00d4ff',
+                        'life-end': '#ff6b6b',
+                    },
+                    fontFamily: {
+                        'orbitron': ['Orbitron', 'sans-serif'],
+                        'mono': ['JetBrains Mono', 'monospace'],
+                        'chinese': ['Noto Sans SC', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .glow-text {
+            text-shadow: 0 0 10px rgba(0, 212, 255, 0.5),
+                         0 0 20px rgba(0, 212, 255, 0.3),
+                         0 0 30px rgba(0, 212, 255, 0.2);
+        }
+
+        .cell {
+            width: 42px;
+            height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: bold;
+            font-size: 22px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            user-select: none;
+            border-radius: 4px;
+        }
+
+        .cell-hidden {
+            background: linear-gradient(145deg, #0f3460, #0a2540);
+            box-shadow: inset 2px 2px 4px rgba(255,255,255,0.1),
+                        inset -2px -2px 4px rgba(0,0,0,0.3);
+        }
+
+        .cell-hidden:hover {
+            background: linear-gradient(145deg, #1a4a7a, #0f3460);
+            transform: translateY(-1px);
+        }
+
+        .cell-revealed {
+            background: #e8e8e8;
+            box-shadow: inset 1px 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .cell-mine {
+            background: linear-gradient(145deg, #e74c3c, #c0392b);
+            animation: shake 0.5s ease-in-out;
+        }
+
+        .cell-flagged {
+            background: linear-gradient(145deg, #f39c12, #d68910);
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(0, 212, 255, 0.5); }
+            50% { box-shadow: 0 0 25px rgba(0, 212, 255, 0.8); }
+        }
+
+        .life-bar {
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+
+        .modal-overlay {
+            backdrop-filter: blur(8px);
+            background: rgba(0, 0, 0, 0.7);
+        }
+
+        .modal-content {
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        .option-btn {
+            transition: all 0.2s ease;
+        }
+
+        .option-btn:hover:not(:disabled) {
+            transform: translateX(10px);
+            box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+        }
+
+        .option-btn.correct {
+            background: linear-gradient(145deg, #27ae60, #1e8449) !important;
+            border-color: #27ae60 !important;
+        }
+
+        .option-btn.wrong {
+            background: linear-gradient(145deg, #e74c3c, #c0392b) !important;
+            border-color: #e74c3c !important;
+        }
+
+        .score-animate {
+            animation: scorePop 0.3s ease-out;
+        }
+
+        @keyframes scorePop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        @media (max-width: 500px) {
+            .cell {
+                width: 28px;
+                height: 28px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+    <!-- 主容器 - 左中右布局 -->
+    <div class="max-w-7xl mx-auto">
+        <!-- 顶部标题 -->
+        <h1 class="font-orbitron text-3xl md:text-5xl font-black text-life-start glow-text mb-8 text-center tracking-wider">
+            🤖 AI 知识扫雷
+        </h1>
+
+        <!-- 左右布局 -->
+        <div class="flex flex-col lg:flex-row gap-8 items-start justify-center">
+            
+            <!-- 左侧栏 - 状态面板 -->
+            <div class="w-full lg:w-64">
+                <div class="bg-board-bg rounded-xl p-5 border border-gray-700 shadow-xl space-y-6">
+                    <!-- 生命值 -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-gray-300 font-chinese flex items-center gap-2">❤️ 生命值</span>
+                            <span id="life-text" class="text-life-start font-mono font-bold">100%</span>
+                        </div>
+                        <div class="h-5 bg-game-bg rounded-full overflow-hidden border border-gray-600">
+                            <div id="life-bar" class="h-full life-bar transition-all duration-500" 
+                                 style="width: 100%; background: linear-gradient(90deg, #00d4ff, #27ae60);">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 分数 -->
+                    <div class="bg-game-bg/50 rounded-lg p-4 text-center">
+                        <span class="text-gray-400 text-sm block mb-1">当前分数</span>
+                        <span id="score" class="text-3xl font-mono font-bold text-yellow-400">0</span>
+                    </div>
+                    
+                    <!-- 游戏信息 -->
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center py-2 border-b border-gray-700">
+                            <span class="text-gray-400">💣 剩余雷数</span>
+                            <span id="mine-count" class="text-red-400 font-mono font-bold text-lg">25</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 border-b border-gray-700">
+                            <span class="text-gray-400">🚩 已标记</span>
+                            <span id="flag-count" class="text-yellow-400 font-mono font-bold text-lg">0</span>
+                        </div>
+                    </div>
+                    
+                    <!-- 操作说明 -->
+                    <div class="pt-4 border-t border-gray-700">
+                        <h3 class="text-gray-300 font-chinese font-bold mb-3">🎮 操作指南</h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex items-center gap-2 text-gray-400">
+                                <span class="text-blue-400 font-bold">左键</span>
+                                <span>翻开格子</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-gray-400">
+                                <span class="text-yellow-400 font-bold">右键</span>
+                                <span>标记旗帜</span>
+                            </div>
+                            <div class="flex items-center gap-2 text-gray-400">
+                                <span class="text-red-400 font-bold">双击</span>
+                                <span>快速揭开</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 新游戏按钮 -->
+                    <button id="new-game-btn" class="w-full py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-chinese font-bold rounded-lg shadow-lg transform hover:scale-105 transition-all">
+                        🎮 新游戏
+                    </button>
+                </div>
+            </div>
+
+            <!-- 右侧栏 - 游戏区 -->
+            <div class="flex flex-col items-center">
+                <!-- 游戏区 -->
+                <div id="game-board" class="grid gap-[2px] bg-board-bg p-4 rounded-xl shadow-2xl border border-gray-700">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI问题弹窗 -->
+    <div id="question-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
+        <div class="modal-content bg-gradient-to-br from-board-bg to-game-bg p-6 rounded-2xl border border-gray-600 
+                    max-w-md w-full shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-orbitron font-bold text-life-start">⚡ AI 知识问答</h2>
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-400 text-sm">⏱️</span>
+                    <span id="timer" class="text-2xl font-mono font-bold text-orange-400">30</span>
+                </div>
+            </div>
+            
+            <p id="question-text" class="text-lg text-white mb-6 font-chinese leading-relaxed">
+                加载中...
+            </p>
+            
+            <div id="options-container" class="space-y-3 mb-4">
+                <!-- 选项将由JS生成 -->
+            </div>
+            
+            <div id="result-message" class="hidden text-center py-3 rounded-lg mb-4 font-chinese font-bold text-lg">
+            </div>
+            
+            <div id="explanation" class="hidden bg-gray-800/50 p-3 rounded-lg text-gray-300 text-sm mb-4 font-chinese">
+            </div>
+            
+            <button id="close-modal" class="hidden w-full py-3 bg-gray-600 hover:bg-gray-500 text-white 
+                                             font-chinese font-bold rounded-lg transition-all">
+                继续游戏
+            </button>
+        </div>
+    </div>
+
+    <!-- 游戏结束弹窗 -->
+    <div id="gameover-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4">
+        <div class="modal-content bg-gradient-to-br from-board-bg to-game-bg p-8 rounded-2xl border border-gray-600 
+                    max-w-sm w-full text-center shadow-2xl">
+            <div id="gameover-icon" class="text-6xl mb-4">😢</div>
+            <h2 id="gameover-title" class="text-2xl font-orbitron font-bold mb-2 text-gray-200">
+                游戏结束
+            </h2>
+            <p id="gameover-message" class="text-gray-400 mb-4 font-chinese">
+                你的生命值已耗尽
+            </p>
+            <div class="bg-gray-800/50 p-4 rounded-lg mb-6">
+                <p class="text-gray-400 text-sm mb-1">最终得分</p>
+                <p id="final-score" class="text-4xl font-orbitron font-bold text-yellow-400">0</p>
+            </div>
+            <button id="restart-btn" 
+                    class="w-full py-3 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-500 hover:to-blue-500 
+                           text-white font-chinese font-bold rounded-lg shadow-lg transform hover:scale-105 transition-all">
+                🔄 再来一局
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 配置 ====================
+        const CONFIG = {
+            ROWS: 12,
+            COLS: 12,
+            MINES: 25,
+            INITIAL_LIFE: 100,
+            CORRECT_REWARD: 10,
+            WRONG_PENALTY: 20,
+            MAX_LIFE: 100,
+            QUESTION_TIME: 30,
+            AI_CONFIG: {
+                apiKey: 'sk-xxx',
+                endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+                model: 'qwen3-max',
+            }
+        };
+
+        // ==================== 游戏状态 ====================
+        let gameState = {
+            board: [],
+            life: CONFIG.INITIAL_LIFE,
+            score: 0,
+            isGameOver: false,
+            isPaused: false,
+            firstClick: true,
+            minesLeft: CONFIG.MINES,
+            flagsPlaced: 0
+        };
+
+        let currentQuestion = null;
+        let questionQueue = [];
+        let timerInterval = null;
+
+        // ==================== DOM元素 ====================
+        const gameBoard = document.getElementById('game-board');
+        const lifeBar = document.getElementById('life-bar');
+        const lifeText = document.getElementById('life-text');
+        const scoreEl = document.getElementById('score');
+        const mineCountEl = document.getElementById('mine-count');
+        const flagCountEl = document.getElementById('flag-count');
+        const questionModal = document.getElementById('question-modal');
+        const questionText = document.getElementById('question-text');
+        const optionsContainer = document.getElementById('options-container');
+        const timerEl = document.getElementById('timer');
+        const resultMessage = document.getElementById('result-message');
+        const explanationEl = document.getElementById('explanation');
+        const closeModalBtn = document.getElementById('close-modal');
+        const gameoverModal = document.getElementById('gameover-modal');
+        const finalScoreEl = document.getElementById('final-score');
+        const newGameBtn = document.getElementById('new-game-btn');
+        const restartBtn = document.getElementById('restart-btn');
+
+        // ==================== 初始化 ====================
+        function initGame() {
+            gameState = {
+                board: [],
+                life: CONFIG.INITIAL_LIFE,
+                score: 0,
+                isGameOver: false,
+                isPaused: false,
+                firstClick: true,
+                minesLeft: CONFIG.MINES,
+                flagsPlaced: 0
+            };
+
+            // 创建空棋盘
+            for (let r = 0; r < CONFIG.ROWS; r++) {
+                gameState.board[r] = [];
+                for (let c = 0; c < CONFIG.COLS; c++) {
+                    gameState.board[r][c] = {
+                        row: r,
+                        col: c,
+                        isMine: false,
+                        isRevealed: false,
+                        isFlagged: false,
+                        neighborMines: 0
+                    };
+                }
+            }
+
+            updateUI();
+            renderBoard();
+            
+            // 预加载AI题目
+            preloadQuestions(3);
+        }
+
+        // ==================== 埋雷（保证第一步不踩雷）====================
+        function placeMines(safeRow, safeCol) {
+            let minesPlaced = 0;
+            while (minesPlaced < CONFIG.MINES) {
+                const r = Math.floor(Math.random() * CONFIG.ROWS);
+                const c = Math.floor(Math.random() * CONFIG.COLS);
+                
+                // 跳过安全区域和已埋雷的位置
+                if (!gameState.board[r][c].isMine && 
+                    !(Math.abs(r - safeRow) <= 1 && Math.abs(c - safeCol) <= 1)) {
+                    gameState.board[r][c].isMine = true;
+                    minesPlaced++;
+                }
+            }
+
+            // 计算每个格子的周围雷数
+            for (let r = 0; r < CONFIG.ROWS; r++) {
+                for (let c = 0; c < CONFIG.COLS; c++) {
+                    if (!gameState.board[r][c].isMine) {
+                        gameState.board[r][c].neighborMines = countNeighbors(r, c, 'mine');
+                    }
+                }
+            }
+        }
+
+        // ==================== 辅助函数 ====================
+        function countNeighbors(row, col, type) {
+            let count = 0;
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    if (dr === 0 && dc === 0) continue;
+                    const nr = row + dr;
+                    const nc = col + dc;
+                    if (nr >= 0 && nr < CONFIG.ROWS && nc >= 0 && nc < CONFIG.COLS) {
+                        if (type === 'mine' && gameState.board[nr][nc].isMine) count++;
+                        if (type === 'flag' && gameState.board[nr][nc].isFlagged) count++;
+                    }
+                }
+            }
+            return count;
+        }
+
+        function getNeighbors(row, col) {
+            const neighbors = [];
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    if (dr === 0 && dc === 0) continue;
+                    const nr = row + dr;
+                    const nc = col + dc;
+                    if (nr >= 0 && nr < CONFIG.ROWS && nc >= 0 && nc < CONFIG.COLS) {
+                        neighbors.push(gameState.board[nr][nc]);
+                    }
+                }
+            }
+            return neighbors;
+        }
+
+        // ==================== 渲染棋盘 ====================
+        function renderBoard() {
+            gameBoard.innerHTML = '';
+            gameBoard.style.gridTemplateColumns = `repeat(${CONFIG.COLS}, 1fr)`;
+
+            for (let r = 0; r < CONFIG.ROWS; r++) {
+                for (let c = 0; c < CONFIG.COLS; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell cell-hidden';
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+
+                    // 左键点击
+                    cell.addEventListener('click', (e) => handleClick(r, c));
+                    
+                    // 右键点击
+                    cell.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        handleRightClick(r, c);
+                    });
+
+                    // 双击（快捷标记）
+                    cell.addEventListener('dblclick', () => handleChord(r, c));
+
+                    gameBoard.appendChild(cell);
+                }
+            }
+        }
+
+        function updateCellDisplay(row, col) {
+            const cellEl = gameBoard.children[row * CONFIG.COLS + col];
+            const cell = gameState.board[row][col];
+
+            cellEl.className = 'cell';
+            cellEl.textContent = '';  // 先清除内容
+
+            if (cell.isFlagged) {
+                cellEl.classList.add('cell-flagged');
+                cellEl.textContent = '🚩';
+            } else if (cell.isRevealed) {
+                cellEl.classList.add('cell-revealed');
+                if (cell.isMine) {
+                    cellEl.classList.add('cell-mine');
+                    cellEl.textContent = '💣';
+                } else if (cell.neighborMines > 0) {
+                    cellEl.textContent = cell.neighborMines;
+                    cellEl.style.color = getNumberColor(cell.neighborMines);
+                } else {
+                    cellEl.textContent = '';
+                }
+            } else {
+                cellEl.classList.add('cell-hidden');
+            }
+        }
+
+        function getNumberColor(num) {
+            const colors = [
+                '', '#3498db', '#27ae60', '#e74c3c', '#9b59b6',
+                '#e67e22', '#1abc9c', '#34495e', '#2c3e50'
+            ];
+            return colors[num] || '#2c3e50';
+        }
+
+        // ==================== 游戏操作 ====================
+        function handleClick(row, col) {
+            if (gameState.isGameOver || gameState.isPaused) return;
+            
+            const cell = gameState.board[row][col];
+            if (cell.isFlagged || cell.isRevealed) return;
+
+            // 第一次点击埋雷
+            if (gameState.firstClick) {
+                placeMines(row, col);
+                gameState.firstClick = false;
+            }
+
+            if (cell.isMine) {
+                // 踩雷了！
+                handleMineHit(row, col);
+            } else {
+                // 没踩雷，揭开格子
+                revealCell(row, col);
+                gameState.score += 10;
+                updateUI();
+                checkWin();
+            }
+        }
+
+        function handleRightClick(row, col) {
+            if (gameState.isGameOver || gameState.isPaused) return;
+
+            const cell = gameState.board[row][col];
+            if (cell.isRevealed) return;
+
+            cell.isFlagged = !cell.isFlagged;
+            gameState.flagsPlaced += cell.isFlagged ? 1 : -1;
+            
+            updateCellDisplay(row, col);
+            updateUI();
+        }
+
+        function handleChord(row, col) {
+            if (gameState.isGameOver || gameState.isPaused) return;
+
+            const cell = gameState.board[row][col];
+            if (!cell.isRevealed || cell.neighborMines === 0) return;
+
+            const flagCount = countNeighbors(row, col, 'flag');
+            if (flagCount === cell.neighborMines) {
+                // 周围旗帜数等于数字，揭开周围未标记的格子
+                const neighbors = getNeighbors(row, col);
+                for (const neighbor of neighbors) {
+                    if (!neighbor.isRevealed && !neighbor.isFlagged) {
+                        if (neighbor.isMine) {
+                            handleMineHit(neighbor.row, neighbor.col);
+                            return;
+                        } else {
+                            revealCell(neighbor.row, neighbor.col);
+                            gameState.score += 10;
+                        }
+                    }
+                }
+                updateUI();
+                checkWin();
+            }
+        }
+
+        function revealCell(row, col) {
+            const cell = gameState.board[row][col];
+            if (cell.isRevealed || cell.isFlagged) return;
+
+            cell.isRevealed = true;
+            updateCellDisplay(row, col);
+
+            // 如果是空白格，递归揭开周围
+            if (cell.neighborMines === 0) {
+                const neighbors = getNeighbors(row, col);
+                for (const neighbor of neighbors) {
+                    if (!neighbor.isRevealed) {
+                        revealCell(neighbor.row, neighbor.col);
+                    }
+                }
+            }
+        }
+
+        // ==================== 踩雷处理 ====================
+        function handleMineHit(row, col) {
+            gameState.isPaused = true;
+            
+            // 只显示踩到的这个地雷，不显示其他的
+            gameState.board[row][col].isRevealed = true;
+            updateCellDisplay(row, col);
+
+            // 获取AI题目
+            showQuestionModal();
+        }
+
+        // ==================== AI题目系统 ====================
+        async function preloadQuestions(count) {
+            for (let i = 0; i < count; i++) {
+                const question = await fetchQuestion();
+                if (question) {
+                    questionQueue.push(question);
+                }
+            }
+        }
+
+        // 随机获取题目：50%概率使用默认题目，50%概率使用AI生成
+        async function fetchQuestion() {
+            // 50%概率使用默认题目
+            if (Math.random() < 0.5) {
+                return getDefaultQuestion();
+            }
+            
+            // 50%概率使用AI题目
+            const aiQuestion = await fetchAIQuestion();
+            return aiQuestion || getDefaultQuestion();
+        }
+
+        async function fetchAIQuestion() {
+            const prompt = `你是一个AI知识出题专家。请生成一道关于人工智能的入门级选择题。
+
+要求：
+1. 题目要基础易懂，适合初学者
+2. 必须是关于人工智能、机器学习、深度学习相关的知识
+3. 提供4个选项
+4. 给出正确答案和解析
+
+请按以下JSON格式返回（不要有其他内容，注意explanation长度控制在50字以内）：
+{
+  "question": "题目内容",
+  "options": ["选项A", "选项B", "选项C", "选项D"],
+  "correctAnswer": 0,
+  "explanation": "解析内容"
+}`;
+
+            try {
+                const response = await fetch(CONFIG.AI_CONFIG.endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${CONFIG.AI_CONFIG.apiKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model: CONFIG.AI_CONFIG.model,
+                        messages: [{ role: 'user', content: prompt }],
+                        temperature: 0.7
+                    }),
+                });
+
+                const data = await response.json();
+                const content = data.choices[0].message.content;
+                
+                // 尝试解析JSON
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    return JSON.parse(jsonMatch[0]);
+                }
+            } catch (error) {
+                console.error('获取AI题目失败:', error);
+            }
+
+            // 如果API失败，返回默认题目
+            return getDefaultQuestion();
+        }
+
+        function getDefaultQuestion() {
+            const questions = [
+                {
+                    question: "以下哪项是机器学习的核心概念？",
+                    options: [
+                        "让计算机通过数据学习并改进",
+                        "编写明确的程序指令",
+                        "使用硬件加速计算",
+                        "创建图形用户界面"
+                    ],
+                    correctAnswer: 0,
+                    explanation: "机器学习是AI的一个分支，让计算机通过数据自动学习"
+                },
+                {
+                    question: "什么是深度学习？",
+                    options: [
+                        "一种快速的编程语言",
+                        "基于多层神经网络的机器学习方法",
+                        "一种数据存储技术",
+                        "计算机的内存管理"
+                    ],
+                    correctAnswer: 1,
+                    explanation: "深度学习使用多层神经网络模拟人脑工作方式"
+                },
+                {
+                    question: "GPT模型属于哪种AI技术？",
+                    options: [
+                        "计算机视觉",
+                        "自然语言处理",
+                        "语音识别",
+                        "机器人技术"
+                    ],
+                    correctAnswer: 1,
+                    explanation: "GPT是生成式预训练Transformer，用于自然语言处理"
+                },
+                {
+                    question: "神经网络中的隐藏层主要作用是什么？",
+                    options: [
+                        "存储输入数据",
+                        "提取和学习数据的特征",
+                        "输出最终结果",
+                        "管理网络权重"
+                    ],
+                    correctAnswer: 1,
+                    explanation: "隐藏层负责从输入数据中提取和学习特征，是神经网络的核心"
+                },
+                {
+                    question: "什么是过拟合在机器学习中？",
+                    options: [
+                        "模型训练时间太长",
+                        "模型在训练数据上表现好但在新数据上差",
+                        "数据量太少无法训练",
+                        "计算资源不足"
+                    ],
+                    correctAnswer: 1,
+                    explanation: "过拟合指模型过度记忆训练数据，泛化能力差"
+                },
+                {
+                    question: "Transformer架构最初是为了解决什么问题设计的？",
+                    options: [
+                        "图像分类",
+                        "语音识别",
+                        "序列到序列的自然语言任务",
+                        "推荐系统"
+                    ],
+                    correctAnswer: 2,
+                    explanation: "Transformer最初用于机器翻译等序列到序列任务"
+                },
+                {
+                    question: "以下哪个不是常见的激活函数？",
+                    options: [
+                        "ReLU",
+                        "Sigmoid",
+                        "SQL",
+                        "Tanh"
+                    ],
+                    correctAnswer: 2,
+                    explanation: "SQL是数据库查询语言，不是激活函数"
+                },
+                {
+                    question: "BERT和GPT的主要区别是什么？",
+                    options: [
+                        "BERT是单向模型，GPT是双向",
+                        "BERT使用编码器，GPT使用解码器",
+                        "BERT只能处理文本，GPT可以处理图像",
+                        "两者没有区别"
+                    ],
+                    correctAnswer: 1,
+                    explanation: "BERT使用编码器架构，GPT使用解码器架构"
+                },
+                {
+                    question: "什么是迁移学习？",
+                    options: [
+                        "将模型从一个服务器移到另一个服务器",
+                        "利用预训练模型的知识来解决新任务",
+                        "把训练数据转移到新环境",
+                        "将权重从一个网络复制到另一个网络"
+                    ],
+                    correctAnswer: 1,
+                    explanation: "迁移学习利用在大规模数据上预训练的模型来加速新任务"
+                },
+                {
+                    question: "以下哪个指标用于衡量分类模型的准确性？",
+                    options: [
+                        "MSE",
+                        "RMSE",
+                        "准确率",
+                        "R²"
+                    ],
+                    correctAnswer: 2,
+                    explanation: "准确率是分类任务最常用的评估指标"
+                },
+                {
+                    question: "什么是强化学习？",
+                    options: [
+                        "通过标注数据训练模型",
+                        "让智能体通过与环境交互学习最优策略",
+                        "使用已标记的图像训练分类器",
+                        "无监督的聚类方法"
+                    ],
+                    correctAnswer: 1,
+                    explanation: "强化学习让智能体通过试错和奖励机制学习决策"
+                },
+                {
+                    question: "大语言模型中的Token是什么意思？",
+                    options: [
+                        "代币或积分",
+                        "文本的基本处理单元",
+                        "模型的参数数量",
+                        "训练数据的数量"
+                    ],
+                    correctAnswer: 1,
+                    explanation: "Token是文本分割的最小单位，可以是词、子词或字符"
+                }
+            ];
+            return questions[Math.floor(Math.random() * questions.length)];
+        }
+
+        function showQuestionModal() {
+            // 获取题目
+            if (questionQueue.length === 0) {
+                currentQuestion = getDefaultQuestion();
+            } else {
+                currentQuestion = questionQueue.shift();
+            }
+
+            // 显示弹窗
+            questionModal.classList.remove('hidden');
+            questionText.textContent = currentQuestion.question;
+            
+            // 生成选项
+            optionsContainer.innerHTML = '';
+            currentQuestion.options.forEach((option, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn w-full p-3 text-left bg-gray-700 hover:bg-gray-600 text-white rounded-lg border border-gray-600 font-chinese';
+                btn.textContent = `${String.fromCharCode(65 + index)}. ${option}`;
+                btn.dataset.index = index;
+                btn.addEventListener('click', () => handleAnswer(index));
+                optionsContainer.appendChild(btn);
+            });
+
+            // 重置状态
+            resultMessage.classList.add('hidden');
+            explanationEl.classList.add('hidden');
+            closeModalBtn.classList.add('hidden');
+            timerEl.textContent = CONFIG.QUESTION_TIME;
+            
+            // 开始倒计时
+            let timeLeft = CONFIG.QUESTION_TIME;
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerEl.textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    handleAnswer(-1); // 超时视为答错
+                }
+            }, 1000);
+        }
+
+        function handleAnswer(selectedIndex) {
+            clearInterval(timerInterval);
+            
+            // 禁用所有按钮
+            const buttons = optionsContainer.querySelectorAll('.option-btn');
+            buttons.forEach(btn => btn.disabled = true);
+
+            const correctIndex = currentQuestion.correctAnswer;
+            const isCorrect = selectedIndex === correctIndex;
+
+            // 显示正确答案
+            if (selectedIndex >= 0) {
+                buttons[selectedIndex].classList.add(isCorrect ? 'correct' : 'wrong');
+            }
+            buttons[correctIndex].classList.add('correct');
+
+            // 显示结果
+            resultMessage.classList.remove('hidden');
+            if (isCorrect) {
+                gameState.life = Math.min(CONFIG.MAX_LIFE, gameState.life + CONFIG.CORRECT_REWARD);
+                gameState.score += 100;
+                resultMessage.className = 'text-center py-3 rounded-lg mb-4 font-chinese font-bold text-lg bg-green-600/30 text-green-400';
+                resultMessage.textContent = '✅ 回答正确！生命值+10%';
+            } else {
+                gameState.life -= CONFIG.WRONG_PENALTY;
+                resultMessage.className = 'text-center py-3 rounded-lg mb-4 font-chinese font-bold text-lg bg-red-600/30 text-red-400';
+                resultMessage.textContent = selectedIndex === -1 ? '⏰ 时间到！生命值-20%' : '❌ 回答错误！生命值-20%';
+            }
+
+            // 显示解析
+            explanationEl.textContent = '📚 ' + currentQuestion.explanation;
+            explanationEl.classList.remove('hidden');
+
+            updateUI();
+
+            // 延迟后继续
+            setTimeout(() => {
+                questionModal.classList.add('hidden');
+                
+                if (gameState.life <= 0) {
+                    // 生命值为0，显示所有地雷并结束游戏
+                    for (let r = 0; r < CONFIG.ROWS; r++) {
+                        for (let c = 0; c < CONFIG.COLS; c++) {
+                            if (gameState.board[r][c].isMine) {
+                                gameState.board[r][c].isRevealed = true;
+                                updateCellDisplay(r, c);
+                            }
+                        }
+                    }
+                    gameState.isPaused = false;
+                    endGame(false);
+                } else {
+                    gameState.isPaused = false;
+                    // 补充题目
+                    preloadQuestions(1);
+                    // 继续游戏
+                    checkWin();
+                }
+            }, 2500);
+        }
+
+        // ==================== 游戏结束 ====================
+        function checkWin() {
+            let revealedCount = 0;
+            for (let r = 0; r < CONFIG.ROWS; r++) {
+                for (let c = 0; c < CONFIG.COLS; c++) {
+                    if (gameState.board[r][c].isRevealed && !gameState.board[r][c].isMine) {
+                        revealedCount++;
+                    }
+                }
+            }
+
+            const totalSafeCells = CONFIG.ROWS * CONFIG.COLS - CONFIG.MINES;
+            if (revealedCount === totalSafeCells) {
+                endGame(true);
+            }
+        }
+
+        function endGame(isWin) {
+            gameState.isGameOver = true;
+            
+            const gameoverIcon = document.getElementById('gameover-icon');
+            const gameoverTitle = document.getElementById('gameover-title');
+            const gameoverMessage = document.getElementById('gameover-message');
+
+            if (isWin) {
+                gameoverIcon.textContent = '🎉';
+                gameoverTitle.textContent = '恭喜通关！';
+                gameoverTitle.className = 'text-2xl font-orbitron font-bold mb-2 text-green-400';
+                gameoverMessage.textContent = '你已掌握所有安全格子！';
+                gameState.score += 500; // 通关奖励
+            } else {
+                gameoverIcon.textContent = '😢';
+                gameoverTitle.textContent = '游戏结束';
+                gameoverTitle.className = 'text-2xl font-orbitron font-bold mb-2 text-red-400';
+                gameoverMessage.textContent = '你的生命值已耗尽';
+            }
+
+            finalScoreEl.textContent = gameState.score;
+            gameoverModal.classList.remove('hidden');
+        }
+
+        // ==================== UI更新 ====================
+        function updateUI() {
+            // 生命值
+            const lifePercent = Math.max(0, gameState.life);
+            lifeBar.style.width = `${lifePercent}%`;
+            lifeText.textContent = `${lifePercent}%`;
+            
+            // 生命值颜色变化
+            if (lifePercent > 60) {
+                lifeBar.style.background = 'linear-gradient(90deg, #00d4ff, #27ae60)';
+            } else if (lifePercent > 30) {
+                lifeBar.style.background = 'linear-gradient(90deg, #f39c12, #e67e22)';
+            } else {
+                lifeBar.style.background = 'linear-gradient(90deg, #e74c3c, #c0392b)';
+            }
+
+            // 分数动画
+            scoreEl.classList.remove('score-animate');
+            void scoreEl.offsetWidth; // 触发重绘
+            scoreEl.classList.add('score-animate');
+            scoreEl.textContent = gameState.score;
+
+            // 地雷数量
+            mineCountEl.textContent = CONFIG.MINES - gameState.flagsPlaced;
+            flagCountEl.textContent = gameState.flagsPlaced;
+        }
+
+        // ==================== 事件监听 ====================
+        newGameBtn.addEventListener('click', initGame);
+        restartBtn.addEventListener('click', () => {
+            gameoverModal.classList.add('hidden');
+            initGame();
+        });
+
+        closeModalBtn.addEventListener('click', () => {
+            questionModal.classList.add('hidden');
+            gameState.isPaused = false;
+        });
+
+        // 禁用右键菜单（使用自定义右键功能）
+        document.addEventListener('contextmenu', (e) => {
+            if (e.target.classList.contains('cell')) {
+                e.preventDefault();
+            }
+        });
+
+        // ==================== 启动游戏 ====================
+        initGame();
+    </script>
+</body>
+</html>
+

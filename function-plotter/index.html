@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="函数图像工坊 - 初中高中数学交互式函数学习工具">
+    <title>🎯 函数图像工坊</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto Sans SC:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+    <!-- 主容器 -->
+    <div class="container mx-auto px-4 py-6 max-w-7xl">
+        <!-- 第一行：参数调节+函数类型 | 图像+函数性质 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <!-- 左侧：参数调节 + 函数类型 + 使用帮助 -->
+            <div class="card bg-white/90 rounded-2xl p-4 shadow-lg">
+                <!-- 函数类型选择 -->
+                <div class="mb-4">
+                    <label class="block text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                        📚 <span>选择函数类型</span>
+                    </label>
+                    <select id="functionTypeSelect" onchange="app.selectFunction(this.value)" 
+                        class="w-full px-3 py-2.5 bg-white border-2 border-blue-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 transition cursor-pointer">
+                        <option value="linear">一次函数 (y = ax + b)</option>
+                        <option value="quadratic" selected>二次函数 (y = ax² + bx + c)</option>
+                        <option value="inverse">反比例函数 (y = a/x)</option>
+                        <option value="sine">正弦函数 (y = a·sin(bx + c))</option>
+                        <option value="exponential">指数函数 (y = a^x + b)</option>
+                    </select>
+                </div>
+                
+                <!-- 参数调节 -->
+                <div class="border-t border-slate-200 pt-4 mb-4">
+                    <h3 class="text-lg font-bold mb-4 flex items-center gap-2 text-slate-800">
+                        ⚙️ <span>参数调节</span>
+                    </h3>
+                    <div id="paramsSliders" class="space-y-4">
+                        <!-- 动态生成 -->
+                    </div>
+                </div>
+
+                <!-- 使用帮助内容 -->
+                <div class="border-t border-slate-200 pt-4">
+                    <h3 class="text-lg font-bold mb-3 flex items-center gap-2 text-slate-800">
+                        📖 <span>使用帮助</span>
+                    </h3>
+                    <div class="space-y-3 text-sm text-slate-600">
+                        <div class="bg-blue-50 rounded-xl p-3 flex items-start gap-3">
+                            <span class="text-blue-600 font-bold text-base">1.</span>
+                            <p class="text-base leading-relaxed">选择函数类型后拖动滑块实时观察参数变化对函数图像的影响</p>
+                        </div>
+                        <div class="bg-blue-50 rounded-xl p-3 flex items-start gap-3">
+                            <span class="text-blue-600 font-bold text-base">2.</span>
+                            <p class="text-base leading-relaxed">点击下方 🤖 按钮与 AI 导师对话，询问函数相关问题</p>
+                        </div>
+                        <div class="bg-blue-50 rounded-xl p-3 flex items-start gap-3">
+                            <span class="text-blue-600 font-bold text-base">3.</span>
+                            <p class="text-base leading-relaxed">使用放大/缩小按钮或鼠标滚轮调整坐标轴范围</p>
+                        </div>
+                        
+                        <!-- AI 导师助手按钮 -->
+                        <button onclick="ui.toggleAIChat()" 
+                            class="w-24 h-24 mx-auto bg-gradient-to-br from-blue-500 to-purple-500 rounded-full shadow-2xl shadow-purple-500/40 
+                                   hover:scale-110 hover:shadow-purple-500/60 transition-all duration-300 flex items-center justify-center
+                                   animate-bounce-slow group mt-3">
+                            <span class="text-4xl">🤖</span>
+                            <!-- 悬浮提示 -->
+                            <span class="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs px-3 py-1.5 rounded-full
+                                         opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                                AI 导师助手
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：图像 + 函数性质 -->
+            <div class="card bg-white/90 rounded-2xl p-4 shadow-lg">
+                <!-- 工具栏 -->
+                <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
+                    <div class="flex gap-1">
+                        <button onclick="app.zoomIn()" class="px-2 py-1 bg-blue-500 hover:bg-blue-600 rounded-lg text-xs transition flex items-center gap-1 text-white shadow-md">
+                            <span>🔍</span> 放大
+                        </button>
+                        <button onclick="app.zoomOut()" class="px-2 py-1 bg-purple-500 hover:bg-purple-600 rounded-lg text-xs transition flex items-center gap-1 text-white shadow-md">
+                            <span>🔎</span> 缩小
+                        </button>
+                        <button onclick="app.resetView()" class="px-2 py-1 bg-pink-500 hover:bg-pink-600 rounded-lg text-xs transition flex items-center gap-1 text-white shadow-md">
+                            <span>🔄</span> 重置
+                        </button>
+                    </div>
+                    <div id="zoomLevel" class="text-xs text-slate-600 font-mono bg-blue-50 px-2 py-1 rounded-lg border border-blue-100">
+                        x[-10,10] y[-10,10]
+                    </div>
+                </div>
+                
+                <!-- Canvas -->
+                <canvas id="canvas" width="500" height="220" 
+                    class="w-full rounded-xl cursor-crosshair bg-white shadow-inner border border-blue-100">
+                </canvas>
+                
+                <!-- 鼠标坐标显示 -->
+                <div id="mouseCoords" class="mt-2 text-center text-xs text-slate-600 font-mono bg-blue-50 rounded-lg py-1.5 border border-blue-100">
+                    <span class="inline-flex items-center gap-2">
+                        <span>📍</span> <span id="coordX" class="text-blue-600">x = -</span>, <span id="coordY" class="text-blue-600">y = -</span>
+                    </span>
+                </div>
+
+                <!-- 函数性质 -->
+                <div id="functionInfo" class="border-t border-slate-200 pt-3 mt-3 fade-in">
+                    <div id="propertiesList" class="space-y-2 text-sm">
+                        <!-- 动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部 -->
+        <footer class="text-center py-6 text-slate-500 text-sm">
+            <span class="inline-flex items-center gap-2 bg-white/80 px-4 py-2 rounded-full border border-blue-100 shadow-sm">
+                <span>🎯</span> 函数图像工坊 <span class="text-blue-300 mx-1">|</span> @fanfan.ai工作室
+            </span>
+        </footer>
+    </div>
+
+    <!-- AI 导师助手弹窗 -->
+    <div id="aiChatModal" class="fixed inset-0 bg-black/20 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div id="aiChatPanel" class="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col"
+             style="max-height: calc(100vh - 100px); position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);">
+            
+            <!-- 拖拽标题栏 -->
+            <div id="aiChatHeader" class="px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-500 rounded-t-2xl cursor-move flex items-center justify-between select-none">
+                <h3 class="text-white font-bold flex items-center gap-2">
+                    <span>🤖</span> AI 导师助手
+                </h3>
+                <button onclick="ui.toggleAIChat()" class="text-white/80 hover:text-white transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- 弹窗内容 -->
+            <div class="flex-1 flex flex-col overflow-hidden">
+                <!-- AI 状态指示 -->
+                <div id="aiStatus" class="hidden px-4 py-3 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-blue-100">
+                    <div class="flex items-center justify-center gap-3">
+                        <div class="flex gap-1">
+                            <span class="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style="animation-delay: 0ms;"></span>
+                            <span class="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style="animation-delay: 150ms;"></span>
+                            <span class="w-3 h-3 bg-blue-500 rounded-full animate-bounce" style="animation-delay: 300ms;"></span>
+                        </div>
+                        <span class="text-blue-600 font-medium">AI 思考中...</span>
+                    </div>
+                </div>
+                
+                <!-- 聊天记录 -->
+                <div id="chatHistory" class="flex-1 overflow-y-auto p-4 space-y-3" 
+                    style="max-height: 800px; min-height: 250px;">
+                    <!-- 初始欢迎消息 -->
+                    <div class="chat-message bg-white rounded-xl p-3 shadow-sm border border-blue-100">
+                        <div class="flex items-start gap-2">
+                            <span class="text-xl">🤖</span>
+                            <div class="text-sm">
+                                <p class="font-bold text-blue-600 mb-1">AI 导师</p>
+                                <p class="text-slate-700">你好！我是你的数学学习助手。选择一个函数类型，调节参数，我来给你讲解函数图像的特点！</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 快捷问题 -->
+                <div class="px-4 py-2 bg-blue-50 border-t border-blue-100">
+                    <p class="text-xs text-slate-500 mb-2 font-medium">💡 快捷提问：</p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <button onclick="aiChat.quickAsk('这个函数有什么特点？')" 
+                            class="px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded-lg text-xs transition text-blue-700 font-medium">
+                            函数特点
+                        </button>
+                        <button onclick="aiChat.quickAsk('参数a变化会怎样影响图像？')" 
+                            class="px-2 py-1 bg-purple-100 hover:bg-purple-200 rounded-lg text-xs transition text-purple-700 font-medium">
+                            参数a的影响
+                        </button>
+                        <button onclick="aiChat.quickAsk('在实际生活中有什么应用？')" 
+                            class="px-2 py-1 bg-pink-100 hover:bg-pink-200 rounded-lg text-xs transition text-pink-700 font-medium">
+                            生活应用
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 输入框 -->
+                <div class="p-4 border-t border-slate-100">
+                    <div class="flex gap-2">
+                        <input type="text" id="userQuestion" placeholder="输入问题..." 
+                            class="flex-1 px-3 py-2 bg-slate-100 border-2 border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 transition"
+                            onkeypress="if(event.key==='Enter') aiChat.sendQuestion()">
+                        <button onclick="aiChat.sendQuestion()" 
+                            class="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl text-sm font-medium hover:opacity-90 transition flex items-center gap-1 text-white shadow-lg">
+                            <span>📤</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载提示 -->
+    <div id="loading" class="fixed inset-0 bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center z-50">
+        <div class="text-center">
+            <div class="text-5xl mb-4 animate-bounce">🎯</div>
+            <p class="text-xl bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent font-bold">
+                加载中...
+            </p>
+            <p class="text-sm text-slate-500 mt-2">正在初始化函数图像工坊</p>
+        </div>
+    </div>
+
+    <!-- JavaScript Modules -->
+    <script src="js/config.js"></script>
+    <script src="js/canvas.js"></script>
+    <script src="js/ai-chat.js"></script>
+    <script src="js/app.js"></script>
+    
+    <!-- 页面加载完成后初始化 -->
+    <script>
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const loading = document.getElementById('loading');
+                if (loading) {
+                    loading.style.opacity = '0';
+                    loading.style.transform = 'scale(0.9)';
+                    loading.style.transition = 'all 0.3s ease';
+                    setTimeout(() => {
+                        loading.style.display = 'none';
+                    }, 300);
+                }
+            }, 500);
+        });
+    </script>
+</body>
+</html>

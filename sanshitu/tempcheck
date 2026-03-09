@@ -1,0 +1,782 @@
+    <script>
+        // ==================== 全局变量 ====================
+        let scene, camera, renderer;
+        let cubes = []; // 存储已放置的正方体 {id, mesh, x, y, z}
+        let cubeIdCounter = 0;
+        let currentMode = 'place'; // 'place' or 'delete'
+        let history = []; // 历史记录
+        let historyIndex = -1;
+        const MAX_HISTORY = 50;
+        const MAX_CUBES = 20;
+        
+        // Raycaster for mouse interaction
+        let raycaster, mouse;
+        let previewCube = null; // 预览方块
+        let gridHelper, axesHelper;
+        
+        // Three view canvases
+        let orthoTopCtx, orthoFrontCtx, orthoSideCtx;
+        
+        // Camera positions
+        const cameraPositions = {
+            perspective: { pos: [5, 5, 5], target: [0, 0, 0] },
+            top: { pos: [0, 10, 0], target: [0, 0, 0] },
+            front: { pos: [0, 0, 10], target: [0, 0, 0] },
+            side: { pos: [10, 0, 0], target: [0, 0, 0] }
+        };
+        
+        // ==================== 初始化 ====================
+        function init() {
+            init3DScene();
+            initOrthoCanvases();
+            initEventListeners();
+            animate();
+            updateUI();
+        }
+        
+        // 初始化3D场景
+        function init3DScene() {
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f172a);
+            
+            // 创建相机
+            camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
+            camera.position.set(5, 5, 5);
+            camera.lookAt(0, 0, 0);
+            
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+            
+            // 存储canvas引用
+            renderer.domElement.id = 'three-canvas';
+            
+            // 添加光源
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+            
+            // 添加网格
+            gridHelper = new THREE.GridHelper(10, 10, 0x334155, 0x1e293b);
+            gridHelper.position.y = -0.01;
+            scene.add(gridHelper);
+            
+            // 添加坐标轴
+            axesHelper = new THREE.AxesHelper(5);
+            scene.add(axesHelper);
+            
+            // Raycaster
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            
+            // 预览方块
+            const previewGeom = new THREE.BoxGeometry(1, 1, 1);
+            const previewMat = new THREE.MeshBasicMaterial({ 
+                color: 0x22d3ee, 
+                transparent: true, 
+                opacity: 0.4,
+                wireframe: false
+            });
+            previewCube = new THREE.Mesh(previewGeom, previewMat);
+            previewCube.visible = false;
+            scene.add(previewCube);
+            
+            // 地面平面（用于点击检测）
+            const groundGeom = new THREE.PlaneGeometry(10, 10);
+            const groundMat = new THREE.MeshBasicMaterial({ visible: false });
+            const ground = new THREE.Mesh(groundGeom, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.name = 'ground';
+            scene.add(ground);
+            
+            // 窗口大小调整
+            window.addEventListener('resize', onWindowResize);
+        }
+        
+        // 初始化正交视图Canvas
+        function initOrthoCanvases() {
+            orthoTopCtx = document.getElementById('threeview-top').getContext('2d');
+            orthoFrontCtx = document.getElementById('threeview-front').getContext('2d');
+            orthoSideCtx = document.getElementById('threeview-side').getContext('2d');
+        }
+        
+        // 窗口大小调整
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+        }
+        
+        // ==================== 事件监听 ====================
+        function initEventListeners() {
+            const canvas = renderer.domElement;
+            
+            // 鼠标移动
+            canvas.addEventListener('mousemove', onMouseMove);
+            
+            // 鼠标点击
+            canvas.addEventListener('click', onCanvasClick);
+            
+            // 模式切换按钮
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    setMode(btn.dataset.mode);
+                });
+            });
+            
+            // 视角切换按钮
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    setView(btn.dataset.view);
+                });
+            });
+            
+            // 功能按钮
+            document.getElementById('btn-undo').addEventListener('click', undo);
+            document.getElementById('btn-redo').addEventListener('click', redo);
+            document.getElementById('btn-clear').addEventListener('click', showClearConfirm);
+            document.getElementById('btn-ortho').addEventListener('click', showThreeViewModal);
+            document.getElementById('close-threeview').addEventListener('click', hideThreeViewModal);
+            
+            // 点击模态框背景关闭
+            document.getElementById('threeview-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'threeview-modal') {
+                    hideThreeViewModal();
+                }
+            });
+            
+            // 模态框
+            document.getElementById('modal-cancel').addEventListener('click', hideClearConfirm);
+            document.getElementById('modal-confirm').addEventListener('click', () => {
+                clearAll();
+                hideClearConfirm();
+            });
+            
+            // 鼠标控制
+            initOrbitControls();
+        }
+        
+        // 简单的轨道控制实现
+        function initOrbitControls() {
+            let isDragging = false;
+            let isPanning = false;
+            let previousMousePosition = { x: 0, y: 0 };
+            const canvas = renderer.domElement;
+            const rotateSpeed = 0.005;
+            const panSpeed = 0.01;
+            
+            canvas.addEventListener('mousedown', (e) => {
+                if (e.button === 0) isDragging = true;
+                if (e.button === 2) isPanning = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                const deltaX = e.clientX - previousMousePosition.x;
+                const deltaY = e.clientY - previousMousePosition.y;
+                
+                if (isDragging && e.buttons === 1) {
+                    // 旋转
+                    const spherical = new THREE.Spherical();
+                    spherical.setFromVector3(camera.position);
+                    spherical.theta -= deltaX * rotateSpeed;
+                    spherical.phi -= deltaY * rotateSpeed;
+                    spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+                    camera.position.setFromSpherical(spherical);
+                    camera.lookAt(0, 0, 0);
+                }
+                
+                if (isPanning) {
+                    // 平移
+                    const right = new THREE.Vector3();
+                    const up = new THREE.Vector3();
+                    camera.matrix.extractBasis(right, up, new THREE.Vector3());
+                    camera.position.add(right.multiplyScalar(-deltaX * panSpeed));
+                    camera.position.add(up.multiplyScalar(deltaY * panSpeed));
+                }
+                
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+            
+            canvas.addEventListener('mouseup', () => {
+                isDragging = false;
+                isPanning = false;
+            });
+            
+            canvas.addEventListener('mouseleave', () => {
+                isDragging = false;
+                isPanning = false;
+            });
+            
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomSpeed = 0.001;
+                const direction = new THREE.Vector3();
+                camera.getWorldDirection(direction);
+                camera.position.addScaledVector(direction, -e.deltaY * zoomSpeed * camera.position.length());
+            }, { passive: false });
+            
+            // 禁用右键菜单
+            canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+        }
+        
+        // 鼠标移动处理
+        function onMouseMove(e) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            if (currentMode === 'place') {
+                updatePreviewCube();
+            }
+        }
+        
+        // 更新预览方块
+        function updatePreviewCube() {
+            raycaster.setFromCamera(mouse, camera);
+            
+            // 检测现有方块
+            const cubeMeshes = cubes.map(c => c.mesh);
+            const intersects = raycaster.intersectObjects([...cubeMeshes, scene.getObjectByName('ground')]);
+            
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+                let pos = new THREE.Vector3();
+                
+                if (intersect.object.name === 'ground') {
+                    // 点击地面，吸附到网格
+                    pos.copy(intersect.point);
+                    pos.y = 0.5;
+                } else {
+                    // 点击方块，在点击面上放置
+                    pos.copy(intersect.object.position);
+                    pos.add(intersect.face.normal);
+                }
+                
+                // 吸附到整数坐标
+                const snappedPos = snapToGrid(pos);
+                
+                // 检查是否已存在
+                const exists = cubes.some(c => 
+                    Math.round(c.x) === snappedPos.x && 
+                    Math.round(c.y) === snappedPos.y && 
+                    Math.round(c.z) === snappedPos.z
+                );
+                
+                if (!exists && cubes.length < MAX_CUBES) {
+                    previewCube.position.copy(snappedPos);
+                    previewCube.visible = true;
+                } else {
+                    previewCube.visible = false;
+                }
+            } else {
+                previewCube.visible = false;
+            }
+        }
+        
+        // 吸附到网格
+        function snapToGrid(pos) {
+            return new THREE.Vector3(
+                Math.round(pos.x),
+                Math.max(0.5, Math.round(pos.y)),
+                Math.round(pos.z)
+            );
+        }
+        
+        // 画布点击处理
+        function onCanvasClick(e) {
+            if (currentMode === 'place') {
+                addCubeAtPreview();
+            } else if (currentMode === 'delete') {
+                deleteCubeAtMouse();
+            }
+        }
+        
+        // 在预览位置添加方块
+        function addCubeAtPreview() {
+            if (!previewCube.visible) return;
+            if (cubes.length >= MAX_CUBES) {
+                alert(`最多只能放置 ${MAX_CUBES} 个方块`);
+                return;
+            }
+            
+            const pos = previewCube.position.clone();
+            addCube(Math.round(pos.x), Math.round(pos.y), Math.round(pos.z));
+        }
+        
+        // 添加方块
+        function addCube(x, y, z) {
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshLambertMaterial({ color: 0x22d3ee });
+            const cube = new THREE.Mesh(geometry, material);
+            
+            cube.position.set(x, y, z);
+            cube.castShadow = true;
+            cube.receiveShadow = true;
+            cube.name = 'cube';
+            
+            scene.add(cube);
+            
+            const cubeData = {
+                id: ++cubeIdCounter,
+                mesh: cube,
+                x: x,
+                y: y,
+                z: z
+            };
+            
+            cubes.push(cubeData);
+            
+            // 添加到历史
+            addToHistory({ action: 'add', cube: cubeData });
+            
+            // 动画
+            cube.scale.set(0, 0, 0);
+            animateScale(cube, 1);
+            
+            updateUI();
+            updateThreeViewCanvases();
+        }
+        
+        // 删除鼠标位置的方块
+        function deleteCubeAtMouse() {
+            raycaster.setFromCamera(mouse, camera);
+            const cubeMeshes = cubes.map(c => c.mesh);
+            const intersects = raycaster.intersectObjects(cubeMeshes);
+            
+            if (intersects.length > 0) {
+                const mesh = intersects[0].object;
+                const index = cubes.findIndex(c => c.mesh === mesh);
+                if (index !== -1) {
+                    removeCube(index);
+                }
+            }
+        }
+        
+        // 移除方块
+        function removeCube(index) {
+            const cubeData = cubes[index];
+            
+            // 添加到历史
+            addToHistory({ action: 'delete', cube: cubeData });
+            
+            // 动画
+            animateScale(cubeData.mesh, 0, () => {
+                scene.remove(cubeData.mesh);
+                cubeData.mesh.geometry.dispose();
+                cubeData.mesh.material.dispose();
+            });
+            
+            cubes.splice(index, 1);
+            updateUI();
+            updateThreeViewCanvases();
+        }
+        
+        // 方块缩放动画
+        function animateScale(mesh, targetScale, onComplete) {
+            const startScale = mesh.scale.x;
+            const duration = 200;
+            const startTime = Date.now();
+            
+            function animate() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Ease out
+                const eased = 1 - Math.pow(1 - progress, 3);
+                const scale = startScale + (targetScale - startScale) * eased;
+                
+                mesh.scale.set(scale, scale, scale);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else if (onComplete) {
+                    onComplete();
+                }
+            }
+            
+            animate();
+        }
+        
+        // 清空所有方块
+        function clearAll() {
+            while (cubes.length > 0) {
+                const cubeData = cubes[0];
+                scene.remove(cubeData.mesh);
+                cubeData.mesh.geometry.dispose();
+                cubeData.mesh.material.dispose();
+                cubes.shift();
+            }
+            
+            // 清空历史
+            history = [];
+            historyIndex = -1;
+            
+            updateUI();
+            updateThreeViewCanvases();
+        }
+        
+        // ==================== 历史记录 ====================
+        function addToHistory(action) {
+            // 移除当前索引之后的所有记录
+            if (historyIndex < history.length - 1) {
+                history = history.slice(0, historyIndex + 1);
+            }
+            
+            history.push(action);
+            
+            // 限制历史长度
+            if (history.length > MAX_HISTORY) {
+                history.shift();
+            } else {
+                historyIndex++;
+            }
+            
+            updateUI();
+        }
+        
+        function undo() {
+            if (historyIndex < 0) return;
+            
+            const action = history[historyIndex];
+            
+            if (action.action === 'add') {
+                // 撤销添加 = 删除
+                const index = cubes.findIndex(c => c.id === action.cube.id);
+                if (index !== -1) {
+                    scene.remove(cubes[index].mesh);
+                    cubes[index].mesh.geometry.dispose();
+                    cubes[index].mesh.material.dispose();
+                    cubes.splice(index, 1);
+                }
+            } else if (action.action === 'delete') {
+                // 撤销删除 = 重新添加
+                const cubeData = action.cube;
+                const geometry = new THREE.BoxGeometry(1, 1, 1);
+                const material = new THREE.MeshLambertMaterial({ color: 0x22d3ee });
+                const cube = new THREE.Mesh(geometry, material);
+                
+                cube.position.set(cubeData.x, cubeData.y, cubeData.z);
+                cube.castShadow = true;
+                cube.receiveShadow = true;
+                cube.name = 'cube';
+                cube.scale.set(0, 0, 0);
+                
+                scene.add(cube);
+                
+                const newCubeData = {
+                    id: cubeData.id,
+                    mesh: cube,
+                    x: cubeData.x,
+                    y: cubeData.y,
+                    z: cubeData.z
+                };
+                
+                cubes.push(newCubeData);
+                animateScale(cube, 1);
+            }
+            
+            historyIndex--;
+            updateUI();
+            updateThreeViewCanvases();
+        }
+        
+        function redo() {
+            if (historyIndex >= history.length - 1) return;
+            
+            historyIndex++;
+            const action = history[historyIndex];
+            
+            if (action.action === 'add') {
+                // 重做添加 = 重新添加
+                const cubeData = action.cube;
+                const geometry = new THREE.BoxGeometry(1, 1, 1);
+                const material = new THREE.MeshLambertMaterial({ color: 0x22d3ee });
+                const cube = new THREE.Mesh(geometry, material);
+                
+                cube.position.set(cubeData.x, cubeData.y, cubeData.z);
+                cube.castShadow = true;
+                cube.receiveShadow = true;
+                cube.name = 'cube';
+                cube.scale.set(0, 0, 0);
+                
+                scene.add(cube);
+                
+                const newCubeData = {
+                    id: cubeData.id,
+                    mesh: cube,
+                    x: cubeData.x,
+                    y: cubeData.y,
+                    z: cubeData.z
+                };
+                
+                cubes.push(newCubeData);
+                animateScale(cube, 1);
+            } else if (action.action === 'delete') {
+                // 重做删除 = 重新删除
+                const index = cubes.findIndex(c => c.id === action.cube.id);
+                if (index !== -1) {
+                    scene.remove(cubes[index].mesh);
+                    cubes[index].mesh.geometry.dispose();
+                    cubes[index].mesh.material.dispose();
+                    cubes.splice(index, 1);
+                }
+            }
+            
+            updateUI();
+            updateThreeViewCanvases();
+        }
+        
+        // ==================== UI 更新 ====================
+        function updateUI() {
+            document.getElementById('cube-count').textContent = cubes.length;
+            document.getElementById('current-mode').textContent = currentMode === 'place' ? '放置' : '删除';
+            
+            // 撤销重做按钮
+            document.getElementById('btn-undo').disabled = historyIndex < 0;
+            document.getElementById('btn-redo').disabled = historyIndex >= history.length - 1;
+            
+            // 模式按钮
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.mode === currentMode);
+            });
+        }
+        
+        // ==================== 模式切换 ====================
+        function setMode(mode) {
+            currentMode = mode;
+            previewCube.visible = false;
+            updateUI();
+        }
+        
+        function setView(view) {
+            const config = cameraPositions[view];
+            if (!config) return;
+            
+            // 动画过渡到目标视角
+            const startPos = camera.position.clone();
+            const endPos = new THREE.Vector3(...config.pos);
+            const duration = 500;
+            const startTime = Date.now();
+            
+            function animateCamera() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Ease in-out
+                const eased = progress < 0.5 
+                    ? 2 * progress * progress 
+                    : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                
+                camera.position.lerpVectors(startPos, endPos, eased);
+                camera.lookAt(0, 0, 0);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animateCamera);
+                }
+            }
+            
+            animateCamera();
+            
+            // 更新按钮状态
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.view === view);
+            });
+        }
+        
+        // ==================== 三视图 ====================
+        function showThreeViewModal() {
+            const modal = document.getElementById('threeview-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            updateThreeViewCanvases();
+        }
+        
+        function hideThreeViewModal() {
+            const modal = document.getElementById('threeview-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+        
+        function updateThreeViewCanvases() {
+            // 调整canvas大小
+            resizeThreeViewCanvas('threeview-top');
+            resizeThreeViewCanvas('threeview-front');
+            resizeThreeViewCanvas('threeview-side');
+            
+            // 绘制三个视图
+            drawOrthoView(orthoTopCtx, 'top');
+            drawOrthoView(orthoFrontCtx, 'front');
+            drawOrthoView(orthoSideCtx, 'side');
+        }
+        
+        function resizeThreeViewCanvas(canvasId) {
+            const canvas = document.getElementById(canvasId);
+            const container = canvas.parentElement;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+        }
+        
+        function drawOrthoView(ctx, view) {
+            const canvas = ctx.canvas;
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // 清空
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, width, height);
+            
+            // 绘制网格
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            
+            const gridSize = 12; // 增加网格范围
+            const cellSize = Math.min(width, height) / gridSize;
+            
+            // 计算居中偏移
+            const offsetX = (width - gridSize * cellSize) / 2;
+            const offsetY = (height - gridSize * cellSize) / 2;
+            
+            for (let i = 0; i <= gridSize; i++) {
+                ctx.beginPath();
+                ctx.moveTo(offsetX + i * cellSize, offsetY);
+                ctx.lineTo(offsetX + i * cellSize, offsetY + gridSize * cellSize);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(offsetX, offsetY + i * cellSize);
+                ctx.lineTo(offsetX + gridSize * cellSize, offsetY + i * cellSize);
+                ctx.stroke();
+            }
+            
+            // 绘制中心线
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            const centerX = offsetX + (gridSize / 2) * cellSize;
+            const centerY = offsetY + (gridSize / 2) * cellSize;
+            
+            // 获取视图中的方块位置（去重）
+            const viewCubes = getUniqueViewCubes(view);
+            
+            // 绘制方块
+            ctx.fillStyle = '#22d3ee';
+            ctx.strokeStyle = '#0e7490';
+            ctx.lineWidth = 2;
+            
+            viewCubes.forEach(cube => {
+                const screenX = offsetX + (cube.x + gridSize/2) * cellSize;
+                const screenY = offsetY + (cube.y + gridSize/2) * cellSize;
+                const size = cellSize - 2;
+                
+                ctx.fillRect(screenX - size/2, screenY - size/2, size, size);
+                ctx.strokeRect(screenX - size/2, screenY - size/2, size, size);
+            });
+            
+            // 绘制坐标轴标签
+            ctx.fillStyle = '#64748b';
+            ctx.font = `${Math.max(10, cellSize * 0.4)}px system-ui`;
+            ctx.fillText(getAxisLabel(view), offsetX + 5, offsetY + 15);
+        }
+        
+        // 获取去重后的视图方块（同一个位置只显示一个）
+        function getUniqueViewCubes(view) {
+            const positions = new Set();
+            const result = [];
+            
+            cubes.forEach(cube => {
+                let x, y;
+                
+                if (view === 'top') {
+                    // 俯视图: XZ平面 (从上方看，X向右，Z向下)
+                    x = cube.x;
+                    y = -cube.z; // Z轴向下为正
+                } else if (view === 'front') {
+                    // 正视图: XY平面 (从正面看，X向右，Y向上)
+                    x = cube.x;
+                    y = cube.y;
+                } else if (view === 'side') {
+                    // 侧视图: ZY平面 (从右面看，Z向右，Y向上)
+                    x = -cube.z;
+                    y = cube.y;
+                }
+                
+                const key = `${x},${y}`;
+                if (!positions.has(key)) {
+                    positions.add(key);
+                    result.push({ x, y });
+                }
+            });
+            
+            return result;
+        }
+            
+            cubes.forEach(cube => {
+                let x, y;
+                
+                if (view === 'top') {
+                    // 俯视图: XZ平面
+                    x = cube.x;
+                    y = cube.z;
+                } else if (view === 'front') {
+                    // 正视图: ZY平面
+                    x = cube.z;
+                    y = cube.y;
+                } else if (view === 'side') {
+                    // 侧视图: XY平面
+                    x = cube.x;
+                    y = cube.y;
+                }
+                
+                // 转换到画布坐标
+                result.push({ x, y });
+            });
+            
+            return result;
+        }
+        
+        function getAxisLabel(view) {
+            if (view === 'top') return '↑ Y | ← X →';
+            if (view === 'front') return '↑ Y | ← Z →';
+            if (view === 'side') return '↑ Y | ← X →';
+            return '';
+        }
+        // ==================== 模态框 ====================
+        function showClearConfirm() {
+            if (cubes.length === 0) return;
+            document.getElementById('confirm-modal').classList.remove('hidden');
+            document.getElementById('confirm-modal').classList.add('flex');
+        }
+        
+        function hideClearConfirm() {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            document.getElementById('confirm-modal').classList.remove('flex');
+        }
+        
+        // ==================== 动画循环 ====================
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        
+        // 启动
+        init();
+    </script>

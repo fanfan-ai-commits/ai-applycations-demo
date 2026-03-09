@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三维分子结构查看器 | AI 教育应用</title>
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * { font-family: 'Noto Sans SC', sans-serif; }
+        
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #e0e7ff; }
+        ::-webkit-scrollbar-thumb { background: #818cf8; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6366f1; }
+        
+        /* 分子列表项 */
+        .molecule-item {
+            transition: all 0.2s ease;
+        }
+        .molecule-item:hover {
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.1) 100%);
+            border-left: 3px solid #6366f1;
+        }
+        .molecule-item.active {
+            background: linear-gradient(90deg, rgba(99, 102, 241, 0.25) 0%, rgba(139, 92, 246, 0.15) 100%);
+            border-left: 3px solid #8b5cf6;
+        }
+        
+        /* 3D 画布 - 活泼的渐变背景 */
+        #canvas-container {
+            background: linear-gradient(135deg, #e0f2fe 0%, #fef3c7 50%, #fce7f3 100%);
+        }
+        
+        /* 加载动画 */
+        .loader {
+            border: 3px solid #c7d2fe;
+            border-top: 3px solid #6366f1;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* 工具提示 */
+        .tooltip {
+            position: absolute;
+            background: rgba(99, 102, 241, 0.95);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+        
+        /* AI 加载动画 */
+        .ai-loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #c7d2fe;
+            border-top: 2px solid #6366f1;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        /* AI 聊天区域 */
+        #ai-chat {
+            scrollbar-width: thin;
+            scrollbar-color: #818cf8 #f5f3ff;
+        }
+        
+        /* 按钮悬浮效果 */
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            transition: all 0.2s ease;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+        
+        /* 输入框聚焦效果 */
+        input:focus {
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 text-gray-700 h-screen overflow-hidden">
+    
+    <div class="flex h-screen">
+        <!-- 左侧边栏：分子列表 -->
+        <aside class="w-64 bg-white/80 backdrop-blur-sm border-r border-indigo-100 flex flex-col shadow-lg">
+            <!-- 标题 -->
+            <div class="p-4 border-b border-indigo-100 bg-gradient-to-r from-indigo-500 to-purple-500 text-white">
+                <h1 class="text-lg font-bold flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                    </svg>
+                    分子结构查看器
+                </h1>
+                <p class="text-xs text-white/70 mt-1">选择分子查看3D结构</p>
+            </div>
+            
+            <!-- 搜索框 -->
+            <div class="p-3">
+                <div class="relative">
+                    <input type="text" id="search-input" placeholder="搜索分子..." 
+                        class="w-full bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 focus:bg-white transition-colors">
+                    <svg class="w-4 h-4 absolute right-2.5 top-2.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </div>
+            </div>
+            
+            <!-- 分子列表 -->
+            <div id="molecule-list" class="flex-1 overflow-y-auto px-2 pb-4">
+            </div>
+            
+            <!-- 底部信息 -->
+            <div class="p-3 border-t border-indigo-100 text-xs text-indigo-400">
+                <p>🖱️ 拖拽旋转 | 滚轮缩放</p>
+            </div>
+        </aside>
+        
+        <!-- 中间区域：3D画布 + AI问答 -->
+        <main class="flex-1 flex flex-col min-w-0">
+            <!-- 顶部工具栏 -->
+            <header class="h-12 bg-white/80 backdrop-blur-sm border-b border-indigo-100 flex items-center justify-between px-4 shadow-sm">
+                <div class="flex items-center gap-3">
+                    <h2 id="current-molecule-name" class="text-base font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">水分子 (H₂O)</h2>
+                    <span id="molecule-formula" class="text-sm text-purple-500 font-medium">H₂O</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="reset-view" class="px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-600 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        重置
+                    </button>
+                    <button id="auto-rotate" class="px-3 py-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-600 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        <span id="rotate-text">旋转</span>
+                    </button>
+                    <button id="screenshot" class="px-3 py-1.5 btn-primary text-white rounded-lg text-xs font-medium flex items-center gap-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                        截图
+                    </button>
+                </div>
+            </header>
+            
+            <!-- 3D 画布容器 -->
+            <div id="canvas-container" class="flex-1 relative min-h-0">
+                <div id="loading" class="absolute inset-0 flex items-center justify-center bg-white z-10">
+                    <div class="text-center">
+                        <div class="loader mx-auto mb-3"></div>
+                        <p class="text-indigo-500">加载分子模型...</p>
+                    </div>
+                </div>
+                <div id="tooltip" class="tooltip hidden"></div>
+            </div>
+            
+            <!-- AI 问答区域 -->
+            <div id="ai-panel" class="h-[250px] bg-white/90 backdrop-blur-sm border-t border-indigo-100 flex flex-col transition-all duration-300">
+                <div class="px-4 py-2 border-b border-indigo-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-purple-50">
+                    <h3 class="text-sm font-semibold text-indigo-600 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                        </svg>
+                        🤖 AI 问答助手
+                    </h3>
+                    <div class="flex items-center gap-2">
+                        <span id="chat-molecule-name" class="text-xs text-purple-500 font-medium">水分子</span>
+                        <button id="toggle-ai-panel" class="p-1 hover:bg-indigo-100 rounded-lg transition-colors" title="放大/缩小面板">
+                            <!-- 放大图标 -->
+                            <svg id="expand-icon" class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+                            </svg>
+                            <!-- 缩小图标（默认隐藏） -->
+                            <svg id="compress-icon" class="w-4 h-4 text-indigo-500 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 聊天内容 -->
+                <div id="ai-chat" class="flex-1 overflow-y-auto p-3 space-y-2">
+                    <div class="bg-gradient-to-r from-indigo-100 to-purple-100 rounded-xl p-3 text-sm">
+                        <p class="text-gray-600">有什么关于 <span class="text-indigo-600 font-medium">水分子</span> 的问题都可以问我！</p>
+                    </div>
+                </div>
+                
+                <!-- 输入框 -->
+                <div class="p-3 border-t border-indigo-100 bg-gradient-to-r from-indigo-50 to-purple-50">
+                    <div class="flex gap-2">
+                        <input type="text" id="ai-question" placeholder="输入问题，按 Enter 发送..." 
+                            class="flex-1 bg-white border border-indigo-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-indigo-400 focus:bg-white transition-all">
+                        <button id="ask-ai" class="px-5 btn-primary text-white rounded-xl text-sm font-medium">
+                            提问
+                        </button>
+                    </div>
+                    <!-- 快捷问题 -->
+                    <div id="quick-questions" class="flex flex-wrap gap-1.5 mt-2">
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <!-- 右侧边栏：分子信息 -->
+        <aside class="w-72 bg-white/80 backdrop-blur-sm border-l border-indigo-100 flex flex-col overflow-y-auto shadow-lg">
+            <!-- 分子信息 -->
+            <div class="p-4 border-b border-indigo-100">
+                <h3 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-3">分子信息</h3>
+                
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg px-3 py-2">
+                        <span class="text-gray-500 text-sm">中文名</span>
+                        <span id="info-name" class="text-indigo-600 font-medium text-sm">水分子</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg px-3 py-2">
+                        <span class="text-gray-500 text-sm">化学式</span>
+                        <span id="info-formula" class="text-purple-600 font-mono font-medium text-sm">H₂O</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg px-3 py-2">
+                        <span class="text-gray-500 text-sm">分子量</span>
+                        <span id="info-mw" class="text-pink-600 font-medium text-sm">18.015 g/mol</span>
+                    </div>
+                    <div class="flex justify-between items-center bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg px-3 py-2">
+                        <span class="text-gray-500 text-sm">空间构型</span>
+                        <span id="info-geometry" class="text-indigo-600 font-medium text-sm">V形</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 键长信息 -->
+            <div class="p-4 border-b border-indigo-100">
+                <h3 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-2">键长</h3>
+                <div id="bond-lengths" class="space-y-1.5">
+                </div>
+            </div>
+            
+            <!-- 键角信息 -->
+            <div class="p-4 border-b border-indigo-100">
+                <h3 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-2">键角</h3>
+                <div id="bond-angles" class="space-y-1.5">
+                </div>
+            </div>
+            
+            <!-- 分子性质 -->
+            <div class="p-4">
+                <h3 class="text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-2">分子性质</h3>
+                <p id="molecule-description" class="text-sm text-gray-600 leading-relaxed bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg p-3">
+                    水是生命之源...
+                </p>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        // ==================== 阿里云通义千问 API 配置 ====================
+        const API_CONFIG = {
+            apiKey: 'sk-xxx',
+            endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+            model: 'qwen3-max'
+        };
+
+        // ==================== 分子数据 ====================
+        const MOLECULES = {
+            'H2O': {
+                name: '水分子',
+                formula: 'H₂O',
+                formulaRaw: 'H2O',
+                molecularWeight: 18.015,
+                geometry: 'V形 (弯曲形)',
+                description: '水是生命之源，具有独特的物理化学性质。水分子呈V形结构，氧原子采用sp³杂化。由于氧的电负性大于氢，水分子具有极性，产生氢键，使水具有高沸点、高比热容等特性。',
+                atoms: [
+                    { element: 'O', position: [0, 0, 0], color: 0xff0000, radius: 0.4 },
+                    { element: 'H', position: [0.76, 0.59, 0], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [-0.76, 0.59, 0], color: 0xffffff, radius: 0.25 }
+                ],
+                bonds: [
+                    { from: 0, to: 1, order: 1 },
+                    { from: 0, to: 2, order: 1 }
+                ],
+                angles: [
+                    { atoms: [1, 0, 2], value: '104.5°' }
+                ],
+                bondLengths: [
+                    { atoms: 'O-H', value: '0.96 Å' }
+                ],
+                aiQuestions: ['水的键角是多少？', '为什么水是极性分子？', '水分子如何形成氢键？']
+            },
+            'CO2': {
+                name: '二氧化碳',
+                formula: 'CO₂',
+                formulaRaw: 'CO2',
+                molecularWeight: 44.01,
+                geometry: '直线形',
+                description: '二氧化碳是碳的氧化物，常温下为无色无味气体。CO₂分子呈直线形结构，碳原子采用sp杂化。两个C=O双键对称分布，分子为非极性分子。',
+                atoms: [
+                    { element: 'C', position: [0, 0, 0], color: 0x333333, radius: 0.35 },
+                    { element: 'O', position: [1.16, 0, 0], color: 0xff0000, radius: 0.4 },
+                    { element: 'O', position: [-1.16, 0, 0], color: 0xff0000, radius: 0.4 }
+                ],
+                bonds: [
+                    { from: 0, to: 1, order: 2 },
+                    { from: 0, to: 2, order: 2 }
+                ],
+                angles: [
+                    { atoms: [1, 0, 2], value: '180°' }
+                ],
+                bondLengths: [
+                    { atoms: 'C=O', value: '1.16 Å' }
+                ],
+                aiQuestions: ['CO₂的分子结构是怎样的？', '为什么CO₂是直线形分子？', '二氧化碳有什么用途？']
+            },
+            'CH4': {
+                name: '甲烷',
+                formula: 'CH₄',
+                formulaRaw: 'CH4',
+                molecularWeight: 16.04,
+                geometry: '正四面体',
+                description: '甲烷是最简单的有机物，也是天然气的主要成分。CH₄分子呈正四面体结构，碳原子位于中心，四个氢原子位于四面体的顶点。碳原子采用sp³杂化。',
+                atoms: [
+                    { element: 'C', position: [0, 0, 0], color: 0x333333, radius: 0.35 },
+                    { element: 'H', position: [0.63, 0.63, 0.63], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [-0.63, -0.63, 0.63], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [-0.63, 0.63, -0.63], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [0.63, -0.63, -0.63], color: 0xffffff, radius: 0.25 }
+                ],
+                bonds: [
+                    { from: 0, to: 1, order: 1 },
+                    { from: 0, to: 2, order: 1 },
+                    { from: 0, to: 3, order: 1 },
+                    { from: 0, to: 4, order: 1 }
+                ],
+                angles: [
+                    { atoms: [1, 0, 2], value: '109.5°' }
+                ],
+                bondLengths: [
+                    { atoms: 'C-H', value: '1.09 Å' }
+                ],
+                aiQuestions: ['甲烷的分子结构是什么？', '为什么甲烷是正四面体？', '甲烷有什么化学性质？']
+            },
+            'NH3': {
+                name: '氨气',
+                formula: 'NH₃',
+                formulaRaw: 'NH3',
+                molecularWeight: 17.03,
+                geometry: '三角锥形',
+                description: '氨气是无色有刺激性气味的气体。NH₃分子呈三角锥形，氮原子采用sp³杂化，有一对孤对电子。由于孤对电子的排斥，键角小于109.5°。',
+                atoms: [
+                    { element: 'N', position: [0, 0.38, 0], color: 0x0000ff, radius: 0.38 },
+                    { element: 'H', position: [0.94, -0.13, 0], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [-0.47, -0.13, 0.81], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [-0.47, -0.13, -0.81], color: 0xffffff, radius: 0.25 }
+                ],
+                bonds: [
+                    { from: 0, to: 1, order: 1 },
+                    { from: 0, to: 2, order: 1 },
+                    { from: 0, to: 3, order: 1 }
+                ],
+                angles: [
+                    { atoms: [1, 0, 2], value: '107°' }
+                ],
+                bondLengths: [
+                    { atoms: 'N-H', value: '1.01 Å' }
+                ],
+                aiQuestions: ['氨气的键角是多少？', '为什么氨分子是三角锥形？', '氨气有什么用途？']
+            },
+            'C2H6O': {
+                name: '乙醇',
+                formula: 'C₂H₅OH',
+                formulaRaw: 'C2H6O',
+                molecularWeight: 46.07,
+                geometry: '链状',
+                description: '乙醇俗称酒精，是常见的有机溶剂。分子中含有羟基(-OH)，可形成氢键。乙醇分子具有极性，可与水互溶。',
+                atoms: [
+                    { element: 'C', position: [-0.7, 0, 0], color: 0x333333, radius: 0.35 },
+                    { element: 'C', position: [0.7, 0, 0], color: 0x333333, radius: 0.35 },
+                    { element: 'O', position: [1.4, 1.1, 0], color: 0xff0000, radius: 0.38 },
+                    { element: 'H', position: [-1.1, 0.5, 0.9], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [-1.1, 0.5, -0.9], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [-1.1, -1.0, 0], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [1.1, -0.5, 0.9], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [1.1, -0.5, -0.9], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [2.3, 1.1, 0], color: 0xffffff, radius: 0.25 }
+                ],
+                bonds: [
+                    { from: 0, to: 1, order: 1 },
+                    { from: 1, to: 2, order: 1 },
+                    { from: 0, to: 3, order: 1 },
+                    { from: 0, to: 4, order: 1 },
+                    { from: 0, to: 5, order: 1 },
+                    { from: 1, to: 6, order: 1 },
+                    { from: 1, to: 7, order: 1 },
+                    { from: 2, to: 8, order: 1 }
+                ],
+                angles: [
+                    { atoms: [1, 0, 3], value: '109°' }
+                ],
+                bondLengths: [
+                    { atoms: 'C-C', value: '1.54 Å' },
+                    { atoms: 'C-O', value: '1.43 Å' },
+                    { atoms: 'O-H', value: '0.96 Å' }
+                ],
+                aiQuestions: ['乙醇的分子结构是怎样的？', '为什么乙醇可以与水互溶？', '乙醇有什么化学性质？']
+            },
+            'C6H6': {
+                name: '苯',
+                formula: 'C₆H₆',
+                formulaRaw: 'C6H6',
+                molecularWeight: 78.11,
+                geometry: '平面正六边形',
+                description: '苯是芳香烃的母体，具有独特的芳香性。苯分子是平面正六边形结构，碳原子采用sp²杂化，形成大π键。苯环非常稳定。',
+                atoms: [
+                    { element: 'C', position: [1.4, 0, 0], color: 0x333333, radius: 0.35 },
+                    { element: 'C', position: [0.7, 1.21, 0], color: 0x333333, radius: 0.35 },
+                    { element: 'C', position: [-0.7, 1.21, 0], color: 0x333333, radius: 0.35 },
+                    { element: 'C', position: [-1.4, 0, 0], color: 0x333333, radius: 0.35 },
+                    { element: 'C', position: [-0.7, -1.21, 0], color: 0x333333, radius: 0.35 },
+                    { element: 'C', position: [0.7, -1.21, 0], color: 0x333333, radius: 0.35 },
+                    { element: 'H', position: [2.48, 0, 0], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [1.24, 2.15, 0], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [-1.24, 2.15, 0], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [-2.48, 0, 0], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [-1.24, -2.15, 0], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [1.24, -2.15, 0], color: 0xffffff, radius: 0.25 }
+                ],
+                bonds: [
+                    { from: 0, to: 1, order: 1.5 },
+                    { from: 1, to: 2, order: 1.5 },
+                    { from: 2, to: 3, order: 1.5 },
+                    { from: 3, to: 4, order: 1.5 },
+                    { from: 4, to: 5, order: 1.5 },
+                    { from: 5, to: 0, order: 1.5 },
+                    { from: 0, to: 6, order: 1 },
+                    { from: 1, to: 7, order: 1 },
+                    { from: 2, to: 8, order: 1 },
+                    { from: 3, to: 9, order: 1 },
+                    { from: 4, to: 10, order: 1 },
+                    { from: 5, to: 11, order: 1 }
+                ],
+                angles: [
+                    { atoms: [1, 0, 5], value: '120°' }
+                ],
+                bondLengths: [
+                    { atoms: 'C-C', value: '1.40 Å' },
+                    { atoms: 'C-H', value: '1.08 Å' }
+                ],
+                aiQuestions: ['苯的分子结构是怎样的？', '什么是苯的芳香性？', '苯环有什么特征？']
+            },
+            'H2SO4': {
+                name: '硫酸',
+                formula: 'H₂SO₄',
+                formulaRaw: 'H2SO4',
+                molecularWeight: 98.08,
+                geometry: '四面体',
+                description: '硫酸是重要的强酸，具有强氧化性和脱水性。分子中硫原子采用sp³杂化，与四个氧原子形成四面体结构。两个羟基(-OH)可电离出H⁺。',
+                atoms: [
+                    { element: 'S', position: [0, 0, 0], color: 0xffff00, radius: 0.4 },
+                    { element: 'O', position: [0, 1.43, 0], color: 0xff0000, radius: 0.38 },
+                    { element: 'O', position: [0, -1.43, 0], color: 0xff0000, radius: 0.38 },
+                    { element: 'O', position: [1.43, 0, 0], color: 0xff0000, radius: 0.38 },
+                    { element: 'O', position: [-1.43, 0, 0], color: 0xff0000, radius: 0.38 },
+                    { element: 'H', position: [2.0, 0.7, 0], color: 0xffffff, radius: 0.25 },
+                    { element: 'H', position: [-2.0, 0.7, 0], color: 0xffffff, radius: 0.25 }
+                ],
+                bonds: [
+                    { from: 0, to: 1, order: 2 },
+                    { from: 0, to: 2, order: 2 },
+                    { from: 0, to: 3, order: 1 },
+                    { from: 0, to: 4, order: 1 },
+                    { from: 3, to: 5, order: 1 },
+                    { from: 4, to: 6, order: 1 }
+                ],
+                angles: [
+                    { atoms: [1, 0, 2], value: '111°' }
+                ],
+                bondLengths: [
+                    { atoms: 'S=O', value: '1.43 Å' },
+                    { atoms: 'S-O', value: '1.57 Å' }
+                ],
+                aiQuestions: ['硫酸的分子结构是怎样的？', '为什么硫酸是强酸？', '硫酸有什么特性？']
+            },
+            'N2': {
+                name: '氮气',
+                formula: 'N₂',
+                formulaRaw: 'N2',
+                molecularWeight: 28.01,
+                geometry: '直线形',
+                description: '氮气是空气的主要成分，占空气体积的78%。N₂分子由两个氮原子通过三键连接，分子非常稳定。',
+                atoms: [
+                    { element: 'N', position: [-0.55, 0, 0], color: 0x0000ff, radius: 0.38 },
+                    { element: 'N', position: [0.55, 0, 0], color: 0x0000ff, radius: 0.38 }
+                ],
+                bonds: [
+                    { from: 0, to: 1, order: 3 }
+                ],
+                angles: [],
+                bondLengths: [
+                    { atoms: 'N≡N', value: '1.10 Å' }
+                ],
+                aiQuestions: ['氮气的分子结构是怎样的？', '为什么氮气分子很稳定？', '氮气有什么用途？']
+            },
+            'O2': {
+                name: '氧气',
+                formula: 'O₂',
+                formulaRaw: 'O2',
+                molecularWeight: 32.00,
+                geometry: '直线形',
+                description: '氧气是空气的重要组成部分，支持燃烧和呼吸。O₂分子由两个氧原子通过双键连接，具有顺磁性。',
+                atoms: [
+                    { element: 'O', position: [-0.6, 0, 0], color: 0xff0000, radius: 0.4 },
+                    { element: 'O', position: [0.6, 0, 0], color: 0xff0000, radius: 0.4 }
+                ],
+                bonds: [
+                    { from: 0, to: 1, order: 2 }
+                ],
+                angles: [],
+                bondLengths: [
+                    { atoms: 'O=O', value: '1.21 Å' }
+                ],
+                aiQuestions: ['氧气的分子结构是怎样的？', '为什么氧气支持燃烧？', '氧气有什么重要性？']
+            },
+            'HCl': {
+                name: '氯化氢',
+                formula: 'HCl',
+                formulaRaw: 'HCl',
+                molecularWeight: 36.46,
+                geometry: '直线形',
+                description: '氯化氢是无色有刺激性气味的气体，溶于水形成盐酸。分子为极性分子，氯原子电负性大于氢。',
+                atoms: [
+                    { element: 'H', position: [-0.64, 0, 0], color: 0xffffff, radius: 0.25 },
+                    { element: 'Cl', position: [0.64, 0, 0], color: 0x00ff00, radius: 0.42 }
+                ],
+                bonds: [
+                    { from: 0, to: 1, order: 1 }
+                ],
+                angles: [],
+                bondLengths: [
+                    { atoms: 'H-Cl', value: '1.27 Å' }
+                ],
+                aiQuestions: ['氯化氢的分子结构是怎样的？', 'HCl是极性分子吗？', '盐酸有什么用途？']
+            }
+        };
+
+        // ==================== Three.js 场景变量 ====================
+        let scene, camera, renderer, controls;
+        let moleculeGroup;
+        let raycaster, mouse;
+        let isAutoRotating = false;
+        let currentMolecule = 'H2O';
+        let atomMeshes = [];
+
+        // ==================== 初始化场景 ====================
+        function initScene() {
+            const container = document.getElementById('canvas-container');
+            
+            scene = new THREE.Scene();
+            
+            camera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(3, 2, 3);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setClearColor(0x000000, 0);
+            container.appendChild(renderer.domElement);
+            
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.9);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+            
+            const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight2.position.set(-5, -5, -5);
+            scene.add(directionalLight2);
+            
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            
+            container.addEventListener('mousemove', onMouseMove);
+            container.addEventListener('click', onMouseClick);
+            window.addEventListener('resize', onWindowResize);
+            
+            animate();
+            
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        // ==================== 创建分子模型 ====================
+        function createMolecule(moleculeKey) {
+            const molecule = MOLECULES[moleculeKey];
+            if (!molecule) return;
+            
+            if (moleculeGroup) {
+                scene.remove(moleculeGroup);
+                atomMeshes = [];
+            }
+            
+            moleculeGroup = new THREE.Group();
+            
+            molecule.atoms.forEach((atom, index) => {
+                const geometry = new THREE.SphereGeometry(atom.radius, 32, 32);
+                const material = new THREE.MeshPhongMaterial({
+                    color: atom.color,
+                    shininess: 100,
+                    specular: 0x444444
+                });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(...atom.position);
+                mesh.userData = { element: atom.element, index: index, molecule: moleculeKey };
+                moleculeGroup.add(mesh);
+                atomMeshes.push(mesh);
+            });
+            
+            molecule.bonds.forEach(bond => {
+                const fromAtom = molecule.atoms[bond.from];
+                const toAtom = molecule.atoms[bond.to];
+                
+                const start = new THREE.Vector3(...fromAtom.position);
+                const end = new THREE.Vector3(...toAtom.position);
+                const direction = new THREE.Vector3().subVectors(end, start);
+                const length = direction.length();
+                
+                const bondCount = Math.min(Math.round(bond.order), 3);
+                const bondRadius = 0.06;
+                const bondSpacing = 0.12;
+                
+                for (let i = 0; i < bondCount; i++) {
+                    const offset = (i - (bondCount - 1) / 2) * bondSpacing;
+                    
+                    const geometry = new THREE.CylinderGeometry(bondRadius, bondRadius, length, 16);
+                    const material = new THREE.MeshPhongMaterial({ color: 0x888888, shininess: 50 });
+                    
+                    const cylinder = new THREE.Mesh(geometry, material);
+                    
+                    const midpoint = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
+                    cylinder.position.copy(midpoint);
+                    
+                    const axis = new THREE.Vector3(0, 1, 0);
+                    cylinder.quaternion.setFromUnitVectors(axis, direction.clone().normalize());
+                    
+                    if (bondCount > 1) {
+                        const perpendicular = new THREE.Vector3(1, 0, 0);
+                        if (Math.abs(direction.normalize().dot(perpendicular)) > 0.9) {
+                            perpendicular.set(0, 1, 0);
+                        }
+                        const offsetDir = new THREE.Vector3().crossVectors(direction, perpendicular).normalize();
+                        cylinder.position.add(offsetDir.multiplyScalar(offset));
+                    }
+                    
+                    moleculeGroup.add(cylinder);
+                }
+            });
+            
+            scene.add(moleculeGroup);
+            updateMoleculeInfo(moleculeKey);
+        }
+
+        // ==================== 更新分子信息面板 ====================
+        function updateMoleculeInfo(moleculeKey) {
+            const molecule = MOLECULES[moleculeKey];
+            
+            document.getElementById('current-molecule-name').textContent = `${molecule.name} (${molecule.formula})`;
+            document.getElementById('molecule-formula').textContent = molecule.formula;
+            document.getElementById('info-name').textContent = molecule.name;
+            document.getElementById('info-formula').textContent = molecule.formula;
+            document.getElementById('info-mw').textContent = `${molecule.molecularWeight} g/mol`;
+            document.getElementById('info-geometry').textContent = molecule.geometry;
+            document.getElementById('molecule-description').textContent = molecule.description;
+            document.getElementById('chat-molecule-name').textContent = molecule.name;
+            
+            // 键长
+            const bondLengthsEl = document.getElementById('bond-lengths');
+            bondLengthsEl.innerHTML = molecule.bondLengths.map(bl => `
+                <div class="flex justify-between items-center bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg px-3 py-1.5">
+                    <span class="text-gray-600 text-xs">${bl.atoms}</span>
+                    <span class="text-indigo-600 font-mono text-xs font-medium">${bl.value}</span>
+                </div>
+            `).join('');
+            
+            // 键角
+            const bondAnglesEl = document.getElementById('bond-angles');
+            if (molecule.angles.length > 0) {
+                bondAnglesEl.innerHTML = molecule.angles.map(angle => `
+                    <div class="flex justify-between items-center bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg px-3 py-1.5">
+                        <span class="text-gray-600 text-xs">∠${angle.atoms.map(i => molecule.atoms[i].element).join('-')}</span>
+                        <span class="text-purple-600 font-mono text-xs font-medium">${angle.value}</span>
+                    </div>
+                `).join('');
+            } else {
+                bondAnglesEl.innerHTML = '<p class="text-indigo-300 text-xs">线性分子无键角</p>';
+            }
+            
+            // 快捷问题
+            const quickQuestionsEl = document.getElementById('quick-questions');
+            quickQuestionsEl.innerHTML = molecule.aiQuestions.map(q => `
+                <button class="quick-question text-xs bg-white border border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300 px-2.5 py-1 rounded-full text-indigo-600 transition-colors" data-question="${q}">
+                    ${q}
+                </button>
+            `).join('');
+            
+            document.querySelectorAll('.quick-question').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.getElementById('ai-question').value = btn.dataset.question;
+                    handleAIQuestion();
+                });
+            });
+            
+            // 重置聊天
+            const aiChat = document.getElementById('ai-chat');
+            aiChat.innerHTML = `
+                <div class="bg-gradient-to-r from-indigo-100 to-purple-100 rounded-xl p-3 text-sm">
+                    <p class="text-gray-600">有什么关于 <span class="text-indigo-600 font-medium">${molecule.name}</span> 的问题都可以问我！</p>
+                </div>
+            `;
+        }
+
+        // ==================== 生成分子列表 ====================
+        function generateMoleculeList() {
+            const listEl = document.getElementById('molecule-list');
+            const searchInput = document.getElementById('search-input');
+            
+            function renderList(filter = '') {
+                const filteredMolecules = Object.entries(MOLECULES).filter(([key, mol]) => {
+                    return mol.name.includes(filter) || mol.formulaRaw.toLowerCase().includes(filter.toLowerCase());
+                });
+                
+                listEl.innerHTML = filteredMolecules.map(([key, mol]) => `
+                    <div class="molecule-item cursor-pointer px-3 py-2.5 rounded-xl mb-1.5 ${key === currentMolecule ? 'active' : ''}" data-molecule="${key}">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="font-medium text-gray-700 text-sm">${mol.name}</div>
+                                <div class="text-xs text-indigo-400">${mol.formula}</div>
+                            </div>
+                            <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs bg-gradient-to-br from-indigo-400 to-purple-500 text-white font-medium">
+                                ${mol.atoms.length}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                
+                document.querySelectorAll('.molecule-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        currentMolecule = item.dataset.molecule;
+                        createMolecule(currentMolecule);
+                        renderList(searchInput.value);
+                    });
+                });
+            }
+            
+            renderList();
+            
+            searchInput.addEventListener('input', (e) => {
+                renderList(e.target.value);
+            });
+        }
+
+        // ==================== 鼠标事件 ====================
+        function onMouseMove(event) {
+            const container = document.getElementById('canvas-container');
+            const rect = container.getBoundingClientRect();
+            
+            mouse.x = ((event.clientX - rect.left) / container.clientWidth) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / container.clientHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(atomMeshes);
+            
+            const tooltip = document.getElementById('tooltip');
+            
+            if (intersects.length > 0) {
+                const atom = intersects[0].object;
+                const atomData = atom.userData;
+                const molecule = MOLECULES[atomData.molecule];
+                
+                tooltip.textContent = `${molecule.atoms[atomData.index].element} 原子`;
+                tooltip.style.left = event.clientX - rect.left + 10 + 'px';
+                tooltip.style.top = event.clientY - rect.top + 10 + 'px';
+                tooltip.classList.remove('hidden');
+                container.style.cursor = 'pointer';
+            } else {
+                tooltip.classList.add('hidden');
+                container.style.cursor = 'grab';
+            }
+        }
+
+        function onMouseClick(event) {
+            const container = document.getElementById('canvas-container');
+            const rect = container.getBoundingClientRect();
+            
+            mouse.x = ((event.clientX - rect.left) / container.clientWidth) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / container.clientHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(atomMeshes);
+            
+            if (intersects.length > 0) {
+                const atom = intersects[0].object;
+                const atomData = atom.userData;
+                const molecule = MOLECULES[atomData.molecule];
+                const atomInfo = molecule.atoms[atomData.index];
+                alert(`${atomInfo.element} 原子\n位置: (${atomInfo.position.join(', ')})`);
+            }
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (isAutoRotating && moleculeGroup) {
+                moleculeGroup.rotation.y += 0.01;
+            }
+            
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // ==================== 工具栏按钮事件 ====================
+        document.getElementById('reset-view').addEventListener('click', () => {
+            camera.position.set(3, 2, 3);
+            controls.reset();
+            if (moleculeGroup) moleculeGroup.rotation.set(0, 0, 0);
+        });
+
+        document.getElementById('auto-rotate').addEventListener('click', () => {
+            isAutoRotating = !isAutoRotating;
+            document.getElementById('rotate-text').textContent = isAutoRotating ? '停止' : '旋转';
+        });
+
+        document.getElementById('screenshot').addEventListener('click', () => {
+            renderer.render(scene, camera);
+            const link = document.createElement('a');
+            link.download = `${currentMolecule}_structure.png`;
+            link.href = renderer.domElement.toDataURL('image/png');
+            link.click();
+        });
+
+        // ==================== AI 面板放大/缩小功能 ====================
+        let isAIPanelExpanded = false;
+        const aiPanel = document.getElementById('ai-panel');
+        const expandIcon = document.getElementById('expand-icon');
+        const compressIcon = document.getElementById('compress-icon');
+
+        document.getElementById('toggle-ai-panel').addEventListener('click', () => {
+            isAIPanelExpanded = !isAIPanelExpanded;
+            
+            if (isAIPanelExpanded) {
+                // 放大面板
+                aiPanel.style.height = '600px';
+                expandIcon.classList.add('hidden');
+                compressIcon.classList.remove('hidden');
+            } else {
+                // 缩小面板
+                aiPanel.style.height = '250px';
+                expandIcon.classList.remove('hidden');
+                compressIcon.classList.add('hidden');
+            }
+        });
+
+        // ==================== AI 问答功能 ====================
+        async function handleAIQuestion() {
+            const question = document.getElementById('ai-question').value.trim();
+            if (!question) return;
+            
+            const molecule = MOLECULES[currentMolecule];
+            const aiChat = document.getElementById('ai-chat');
+            const askBtn = document.getElementById('ask-ai');
+            
+            // 用户问题 - 右侧
+            aiChat.innerHTML += `
+                <div class="flex justify-end">
+                    <div class="bg-gradient-to-r from-indigo-500 to-purple-500 rounded-2xl p-3 max-w-[65%] text-sm shadow-md">
+                        <p class="text-white">${question}</p>
+                    </div>
+                </div>
+            `;
+            
+            const loadingId = 'loading-' + Date.now();
+            // 加载提示 - 左侧
+            aiChat.innerHTML += `
+                <div class="flex justify-start">
+                    <div id="${loadingId}" class="bg-gray-100 rounded-2xl p-3 text-sm">
+                        <div class="flex items-center gap-2">
+                            <span class="ai-loading"></span>
+                            <span class="text-gray-500">AI 正在思考...</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            aiChat.scrollTop = aiChat.scrollHeight;
+            
+            askBtn.disabled = true;
+            askBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            
+            try {
+                const systemPrompt = `你是一位专业的化学老师，专门解答关于分子结构的问题。
+当前查看的分子是：${molecule.name}（化学式：${molecule.formula}）
+分子信息：
+- 分子量：${molecule.molecularWeight} g/mol
+- 空间构型：${molecule.geometry}
+- 键长信息：${molecule.bondLengths.map(b => `${b.atoms}: ${b.value}`).join(', ')}
+- 键角信息：${molecule.angles.map(a => `${a.atoms.map(i => molecule.atoms[i].element).join('-')}: ${a.value}`).join(', ') || '无'}
+- 分子性质：${molecule.description}
+
+请用简洁、易懂的语言回答用户的问题。如果问题与当前分子无关，请礼貌地引导用户询问与该分子相关的问题。`;
+
+                const response = await fetch(API_CONFIG.endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${API_CONFIG.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: API_CONFIG.model,
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: question }
+                        ],
+                        temperature: 0.7,
+                        max_tokens: 500
+                    })
+                });
+
+                if (!response.ok) throw new Error(`API 请求失败: ${response.status}`);
+
+                const data = await response.json();
+                const aiResponse = data.choices?.[0]?.message?.content || '抱歉，我暂时无法回答这个问题。';
+                
+                document.getElementById(loadingId)?.remove();
+                
+                // AI 回答 - 左侧
+                aiChat.innerHTML += `
+                    <div class="flex justify-start">
+                        <div class="bg-white border border-indigo-100 rounded-2xl p-3 max-w-[65%] text-sm shadow-sm">
+                            <p class="text-gray-700">${aiResponse.replace(/\n/g, '<br>')}</p>
+                        </div>
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error('AI API Error:', error);
+                document.getElementById(loadingId)?.remove();
+                
+                // 错误提示 - 左侧
+                aiChat.innerHTML += `
+                    <div class="flex justify-start">
+                        <div class="bg-red-50 border border-red-100 rounded-2xl p-3 text-sm">
+                            <p class="text-red-500">抱歉，AI 服务暂时不可用。</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            askBtn.disabled = false;
+            askBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            document.getElementById('ai-question').value = '';
+            aiChat.scrollTop = aiChat.scrollHeight;
+        }
+
+        document.getElementById('ask-ai').addEventListener('click', handleAIQuestion);
+        document.getElementById('ai-question').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleAIQuestion();
+        });
+
+        // ==================== 初始化应用 ====================
+        window.addEventListener('DOMContentLoaded', () => {
+            initScene();
+            generateMoleculeList();
+            createMolecule(currentMolecule);
+        });
+    </script>
+</body>
+</html>

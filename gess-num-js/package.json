@@ -1,0 +1,12 @@
+{
+  "name": "ai-number-guessing-game",
+  "version": "1.0.0",
+  "description": "AI结合的猜数字小游戏",
+  "scripts": {
+    "dev": "npx serve src -p 3000",
+    "start": "npx serve src -p 3000"
+  },
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}

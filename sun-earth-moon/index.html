@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>天体运动展示 - Three.js</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: system-ui, -apple-system, sans-serif; }
+
+        /* 加载文字 */
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: white; font-size: 18px; pointer-events: none; z-index: 100;
+        }
+
+        /* Tab 导航栏 */
+        .tab-nav {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 8px; z-index: 50;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 6px; border-radius: 12px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+        .tab-btn {
+            padding: 10px 24px; border: none; border-radius: 8px;
+            cursor: pointer; font-size: 14px; font-weight: 500;
+            transition: all 0.3s; color: #94a3b8;
+            background: transparent;
+        }
+        .tab-btn.active {
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.5), rgba(139, 92, 246, 0.5));
+            color: white;
+            border: 1px solid rgba(56, 189, 248, 0.5);
+        }
+        .tab-btn:hover:not(.active) {
+            background: rgba(148, 163, 184, 0.1);
+            color: white;
+        }
+
+        /* Tab 内容区域 */
+        .tab-view {
+            display: none; width: 100%; height: 100%;
+            position: absolute; top: 0; left: 0;
+        }
+        .tab-view.active { display: block; }
+
+        /* Canvas 容器 */
+        .canvas-container {
+            width: 100%; height: 100%;
+        }
+
+        /* 星球介绍面板 - 左侧 */
+        .intro-panel {
+            position: absolute; top: 90px; left: 20px;
+            width: 340px; max-height: calc(100vh - 130px);
+            overflow-y: auto;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.9));
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            z-index: 40;
+        }
+        .intro-panel::-webkit-scrollbar { width: 6px; }
+        .intro-panel::-webkit-scrollbar-track { background: rgba(148, 163, 184, 0.1); border-radius: 3px; }
+        .intro-panel::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.3); border-radius: 3px; }
+
+        .intro-title {
+            font-size: 20px; font-weight: 600; color: white;
+            margin-bottom: 16px; padding-bottom: 12px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .planet-intro-card {
+            background: rgba(51, 65, 85, 0.6);
+            border-radius: 12px; padding: 16px;
+            margin-bottom: 16px; border: 1px solid rgba(148, 163, 184, 0.1);
+            transition: all 0.3s; cursor: pointer;
+        }
+        .planet-intro-card:hover {
+            background: rgba(51, 65, 85, 0.8);
+            transform: translateX(4px);
+        }
+        .planet-intro-card.active {
+            border-color: rgba(56, 189, 248, 0.5);
+            background: rgba(56, 189, 248, 0.1);
+        }
+        .planet-intro-card:last-child { margin-bottom: 0; }
+
+        .planet-intro-header {
+            display: flex; align-items: center; gap: 12px;
+            margin-bottom: 12px;
+        }
+        .planet-intro-icon { font-size: 28px; }
+        .planet-intro-name {
+            font-size: 18px; font-weight: 600; color: white;
+        }
+        .planet-intro-type {
+            font-size: 12px; color: #94a3b8; text-transform: uppercase;
+        }
+
+        .planet-intro-desc {
+            font-size: 13px; color: #cbd5e1; line-height: 1.7;
+            margin-bottom: 12px;
+        }
+
+        .planet-intro-stats {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+        }
+        .stat-item {
+            background: rgba(15, 23, 42, 0.5);
+            padding: 8px 10px; border-radius: 6px;
+        }
+        .stat-label { font-size: 10px; color: #94a3b8; text-transform: uppercase; }
+        .stat-value { font-size: 12px; color: white; font-weight: 500; margin-top: 2px; }
+
+        /* 交互提示 */
+        .interaction-hint {
+            position: absolute; bottom: 20px; left: 50%;
+            transform: translateX(-50%);
+            color: rgba(148, 163, 184, 0.7); font-size: 12px;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 8px 16px; border-radius: 20px; z-index: 50;
+        }
+
+        /* 动态演示页面提示 */
+        .demo-hint {
+            position: absolute; top: 90px; right: 20px;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 12px 16px; border-radius: 8px;
+            color: #94a3b8; font-size: 12px;
+            z-index: 40;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        /* 隐藏元素 */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <!-- 加载提示 -->
+    <div id="loading">正在加载宇宙...</div>
+
+    <!-- Tab 导航 -->
+    <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab('intro')">📖 星球简介</button>
+        <button class="tab-btn" onclick="switchTab('demo')">🌐 动态演示</button>
+    </div>
+
+    <!-- Tab 1: 星球简介 -->
+    <div id="tab-intro" class="tab-view active">
+        <div id="canvas-intro" class="canvas-container"></div>
+
+        <!-- 星球介绍面板 -->
+        <div class="intro-panel">
+            <div class="intro-title">🌍 太阳系成员</div>
+
+            <!-- 星球选择器 -->
+            <div style="display: flex; gap: 8px; margin-bottom: 20px;">
+                <button class="planet-btn active" onclick="selectPlanet('sun')" style="flex: 1; padding: 8px; background: rgba(51, 65, 85, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; cursor: pointer; transition: all 0.3s;" onmouseover="this.style.background='rgba(51, 65, 85, 0.8)'" onmouseout="this.style.background='rgba(51, 65, 85, 0.6)'">☀️ 太阳</button>
+                <button class="planet-btn" onclick="selectPlanet('earth')" style="flex: 1; padding: 8px; background: rgba(51, 65, 85, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; cursor: pointer; transition: all 0.3s;" onmouseover="this.style.background='rgba(51, 65, 85, 0.8)'" onmouseout="this.style.background='rgba(51, 65, 85, 0.6)'">🌍 地球</button>
+                <button class="planet-btn" onclick="selectPlanet('moon')" style="flex: 1; padding: 8px; background: rgba(51, 65, 85, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; color: white; cursor: pointer; transition: all 0.3s;" onmouseover="this.style.background='rgba(51, 65, 85, 0.8)'" onmouseout="this.style.background='rgba(51, 65, 85, 0.6)'">🌙 月球</button>
+            </div>
+
+            <!-- 知识点详情 -->
+            <div id="planet-details">
+                <div id="detail-sun" class="detail-content">
+                    <div class="planet-intro-header">
+                        <span class="planet-intro-icon">☀️</span>
+                        <div>
+                            <div class="planet-intro-name">太阳</div>
+                            <div class="planet-intro-type">恒星 · Solar</div>
+                        </div>
+                    </div>
+                    <div class="planet-intro-desc">
+                        太阳是太阳系的中心天体，占据太阳系总体质量的99.86%。它是地球上一切生命的能量来源，通过核聚变反应产生巨大的光和热。
+                    </div>
+                    <div class="planet-intro-stats">
+                        <div class="stat-item"><div class="stat-label">直径</div><div class="stat-value">139 万公里</div></div>
+                        <div class="stat-item"><div class="stat-label">表面温度</div><div class="stat-value">5,500°C</div></div>
+                        <div class="stat-item"><div class="stat-label">自转周期</div><div class="stat-value">约 25 天</div></div>
+                        <div class="stat-item"><div class="stat-label">年龄</div><div class="stat-value">46 亿年</div></div>
+                    </div>
+                </div>
+
+                <div id="detail-earth" class="detail-content hidden">
+                    <div class="planet-intro-header">
+                        <span class="planet-intro-icon">🌍</span>
+                        <div>
+                            <div class="planet-intro-name">地球</div>
+                            <div class="planet-intro-type">行星 · Planet</div>
+                        </div>
+                    </div>
+                    <div class="planet-intro-desc">
+                        地球是太阳系中距离太阳第三远的行星，也是目前已知唯一存在生命的星球。它拥有液态水和适宜的大气层，为生命演化提供了独特条件。
+                    </div>
+                    <div class="planet-intro-stats">
+                        <div class="stat-item"><div class="stat-label">直径</div><div class="stat-value">1.28 万公里</div></div>
+                        <div class="stat-item"><div class="stat-label">与太阳距离</div><div class="stat-value">1.5 亿公里</div></div>
+                        <div class="stat-item"><div class="stat-label">自转周期</div><div class="stat-value">24 小时</div></div>
+                        <div class="stat-item"><div class="stat-label">公转周期</div><div class="stat-value">365.25 天</div></div>
+                    </div>
+                </div>
+
+                <div id="detail-moon" class="detail-content hidden">
+                    <div class="planet-intro-header">
+                        <span class="planet-intro-icon">🌙</span>
+                        <div>
+                            <div class="planet-intro-name">月球</div>
+                            <div class="planet-intro-type">卫星 · Moon</div>
+                        </div>
+                    </div>
+                    <div class="planet-intro-desc">
+                        月球是地球唯一的天然卫星，也是太阳系中第五大卫星。它表面布满陨石坑，潮汐锁定使它永远以同一面朝向地球。
+                    </div>
+                    <div class="planet-intro-stats">
+                        <div class="stat-item"><div class="stat-label">直径</div><div class="stat-value">3,474 公里</div></div>
+                        <div class="stat-item"><div class="stat-label">与地球距离</div><div class="stat-value">38.4 万公里</div></div>
+                        <div class="stat-item"><div class="stat-label">自转周期</div><div class="stat-value">27.3 天</div></div>
+                        <div class="stat-item"><div class="stat-label">公转周期</div><div class="stat-value">27.3 天</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 交互提示 -->
+        <div class="interaction-hint">
+            🖱️ 拖动旋转 | 滚轮缩放
+        </div>
+    </div>
+
+    <!-- Tab 2: 动态演示 -->
+    <div id="tab-demo" class="tab-view">
+        <div id="canvas-demo" class="canvas-container"></div>
+
+        <!-- 演示提示 -->
+        <div class="demo-hint">
+            <div style="color: #38bdf8; font-weight: 600; margin-bottom: 6px;">🌐 太阳系动态演示</div>
+            观察三颗天体的自转与公转运动
+        </div>
+
+        <!-- 交互提示 -->
+        <div class="interaction-hint">
+            🖱️ 左键拖动旋转 | 滚轮缩放 | 右键平移
+        </div>
+    </div>
+
+    <!-- Tab 切换脚本 -->
+    <script>
+        let currentTab = 'intro';
+
+        function switchTab(tab) {
+            currentTab = tab;
+
+            // 切换按钮状态
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // 切换内容
+            document.querySelectorAll('.tab-view').forEach(view => {
+                view.classList.remove('active');
+            });
+            document.getElementById('tab-' + tab).classList.add('active');
+
+            // 通知 JS 更新场景
+            if (window.onTabSwitch) {
+                window.onTabSwitch(tab);
+            }
+        }
+
+        // 星球选择函数
+        function selectPlanet(planet) {
+            // 1. 更新按钮状态
+            document.querySelectorAll('.planet-btn').forEach(btn => {
+                btn.classList.remove('active');
+                btn.style.background = 'rgba(51, 65, 85, 0.6)';
+            });
+            // 找到当前点击的按钮并添加 active 样式
+            const activeBtn = document.querySelector(`button[onclick="selectPlanet('${planet}')"]`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+                activeBtn.style.background = 'rgba(56, 189, 248, 0.8)'; // 选中样式：更亮的蓝色
+            }
+
+            // 2. 更新详情显示
+            document.querySelectorAll('.detail-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            const detailContent = document.getElementById('detail-' + planet);
+            if (detailContent) {
+                detailContent.classList.remove('hidden');
+            }
+
+            // 3. 通知 JS 相机聚焦
+            if (window.focusOnPlanet) {
+                window.focusOnPlanet(planet);
+            }
+        }
+    </script>
+
+    <!-- 引入 Three.js 和 OrbitControls -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <!-- 引入主逻辑 -->
+    <script type="module" src="./js/main.js"></script>
+</body>
+</html>

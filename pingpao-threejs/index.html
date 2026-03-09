@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平抛运动分解对比</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
+
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+
+<body
+    class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- 主面板 -->
+    <div class="w-full max-w-7xl">
+        <!-- 标题 -->
+        <div class="text-center mb-4">
+            <h1 class="text-2xl font-bold text-white mb-1">平抛运动分解对比</h1>
+            <p class="text-slate-400 text-sm">三个小球在同一坐标系中对比：自由落体 vs 水平匀速 vs 平抛运动</p>
+        </div>
+
+        <!-- 画布与控制面板同行 -->
+        <div class="flex gap-4">
+            <!-- 画布 -->
+            <div class="flex-1 bg-slate-800 rounded-xl overflow-hidden shadow-2xl h-[650px]">
+                <canvas id="canvas" width="800" height="550" class="w-full"></canvas>
+                <!-- 图例 -->
+                <div class="flex justify-center gap-8 mt-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded-full bg-green-500"></div>
+                        <span class="text-green-400 text-sm">自由落体</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded-full bg-blue-500"></div>
+                        <span class="text-blue-400 text-sm">水平匀速</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-4 h-4 rounded-full bg-red-500"></div>
+                        <span class="text-red-400 text-sm">平抛运动</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧控制面板 -->
+            <div class="w-64 flex flex-col">
+                <!-- 控制栏 -->
+                <div class="bg-slate-800/80 rounded-xl p-3 backdrop-blur-sm">
+                    <!-- 按钮 -->
+                    <div class="flex gap-2 mb-4">
+                        <button id="startBtn" onclick="start()"
+                            class="flex-1 px-3 py-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-sm rounded-lg font-medium transition-all">
+                            开始演示
+                        </button>
+                        <button onclick="reset()"
+                            class="flex-1 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded-lg font-medium transition-all">
+                            重置
+                        </button>
+                    </div>
+
+                    <!-- 滑块 -->
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-slate-300 text-xs">初始速度 v₀ = <span id="v0Val"
+                                    class="text-yellow-400">30</span> m/s</label>
+                            <input type="range" id="v0Slider" min="5" max="50" value="30" step="1"
+                                class="w-full mt-1 accent-blue-500 h-1" oninput="updateParam()">
+                        </div>
+                        <div>
+                            <label class="text-slate-300 text-xs">初始高度 h = <span id="hVal"
+                                    class="text-yellow-400">70</span> m</label>
+                            <input type="range" id="hSlider" min="10" max="100" value="70" step="1"
+                                class="w-full mt-1 accent-blue-500 h-1" oninput="updateParam()">
+                        </div>
+                        <div>
+                            <label class="text-slate-300 text-xs">播放速度 = <span id="speedVal"
+                                    class="text-yellow-400">1.0</span>x</label>
+                            <input type="range" id="speedSlider" min="0.2" max="2" value="1" step="0.1"
+                                class="w-full mt-1 accent-blue-500 h-1" oninput="updateSpeed()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 实时数据 -->
+                <div class="bg-slate-800/60 rounded-lg p-3 space-y-2">
+                    <!-- 时间 -->
+                    <div>
+                        <div class="text-slate-400 text-xs">时间 t</div>
+                        <div id="time" class="text-white font-mono text-lg">0.00 s</div>
+                        <div class="text-slate-500 text-xs font-serif">t = √(2h/g)</div>
+                    </div>
+                    <div class="border-t border-slate-700 pt-2">
+                        <!-- 水平位移 -->
+                        <div class="mb-2">
+                            <div class="text-slate-400 text-xs">水平位移 x</div>
+                            <div id="xVal" class="text-white font-mono text-lg">0.00 m</div>
+                            <div class="text-slate-500 text-xs font-serif">x = v₀ · t</div>
+                        </div>
+                        <!-- 垂直位移 -->
+                        <div class="mb-2">
+                            <div class="text-slate-400 text-xs">垂直位移 y</div>
+                            <div id="yVal" class="text-white font-mono text-lg">0.00 m</div>
+                            <div class="text-slate-500 text-xs font-serif">y = h - ½gt²</div>
+                        </div>
+                        <!-- 合速度 -->
+                        <div>
+                            <div class="text-slate-400 text-xs">合速度 v</div>
+                            <div id="vVal" class="text-white font-mono text-lg">0.00 m/s</div>
+                            <div class="text-slate-500 text-xs font-serif">v = √(vx² + vy²)</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 速度分解显示 -->
+                <div class="bg-slate-800/60 rounded-lg p-3">
+                    <div class="text-xs text-slate-400 mb-2">速度分解</div>
+                    <div class="space-y-1">
+                        <div>
+                            <span class="text-blue-400 font-mono text-sm">vx = <span id="vxVal">15.00</span> m/s</span>
+                            <span class="text-slate-500 text-xs ml-1">(水平匀速)</span>
+                        </div>
+                        <div>
+                            <span class="text-green-400 font-mono text-sm">vy = <span id="vyVal">0.00</span> m/s</span>
+                            <span class="text-slate-500 text-xs ml-1">(自由落体)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // 固定画布尺寸
+        const W = 1000;
+        const H = 550;
+        canvas.width = W;
+        canvas.height = H;
+
+        // 配置
+        let config = {
+            v0: 30,
+            h: 70,
+            g: 9.8,
+            speed: 1,
+            margin: { left: 70, bottom: 50, top: 20, right: 30 }
+        };
+
+        // 动态范围
+        let axisRange = { xMax: 20, yMax: 15, scale: 30 };
+
+        // 状态
+        let t = 0;
+        let isAnimating = false;
+        let lastTime = 0;
+        let animationId = null;
+
+        // 小球数据
+        const balls = [
+            { name: 'freefall', color: '#22c55e', label: '↓' },
+            { name: 'horizontal', color: '#3b82f6', label: '→' },
+            { name: 'projectile', color: '#ef4444', label: '↘' }
+        ];
+
+        // 计算轴范围
+        function calcAxisRange() {
+            // X轴固定250米
+            axisRange.xMax = 230;
+
+            // Y轴动态计算
+            const maxY = config.h;  // 最大高度
+            axisRange.yMax = Math.ceil(maxY * 1.2 / 5) * 5;
+            axisRange.yMax = Math.max(axisRange.yMax, 15);  // 最小15米
+
+            // 计算缩放比例
+            const availableHeight = H - config.margin.top - config.margin.bottom;
+            const availableWidth = W - config.margin.left - config.margin.right;
+
+            axisRange.scaleY = availableHeight / axisRange.yMax;
+            axisRange.scaleX = availableWidth / axisRange.xMax;  // X轴按固定250计算
+        }
+
+        // 计算位置
+        function getPositions(time) {
+            const v0x = config.v0;
+            const v0y = 0;
+
+            return {
+                freefall: { x: 0, y: config.h - 0.5 * config.g * time * time },
+                horizontal: { x: v0x * time, y: config.h },
+                projectile: { x: v0x * time, y: config.h - 0.5 * config.g * time * time },
+                vx: v0x,
+                vy: config.g * time,
+                v: Math.sqrt(v0x * v0x + (config.g * time) * (config.g * time))
+            };
+        }
+
+        // 获取地面Y坐标
+        function getGroundY() {
+            return H - config.margin.bottom;
+        }
+
+        // 米转像素Y
+        function yToPixel(y) {
+            return getGroundY() - y * axisRange.scaleY;
+        }
+
+        // 米转像素X
+        function xToPixel(x) {
+            return config.margin.left + x * axisRange.scaleX;
+        }
+
+        // 绘制箭头
+        function drawArrow(fromX, fromY, toX, toY, color) {
+            const headLen = 8;
+            const angle = Math.atan2(toY - fromY, toX - fromX);
+
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 3;
+
+            // 箭身
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+            ctx.stroke();
+
+            // 箭头
+            ctx.beginPath();
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headLen * Math.cos(angle - Math.PI / 6), toY - headLen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(toX - headLen * Math.cos(angle + Math.PI / 6), toY - headLen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // 获取Y轴刻度间隔
+        function getYStep() {
+            if (axisRange.yMax <= 20) return 2;
+            if (axisRange.yMax <= 50) return 5;
+            return 10;
+        }
+
+        // 获取X轴刻度间隔
+        function getXStep() {
+            return 25;  // X轴固定250米，每25米一个刻度
+        }
+
+        // 绘制
+        function draw() {
+            calcAxisRange();
+
+            // 清空
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, 0, W, H);
+
+            const pos = getPositions(t);
+            const groundY = getGroundY();
+            const yStep = getYStep();
+            const xStep = getXStep();
+
+            // 绘制网格
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 1;
+
+            // 水平网格线
+            for (let y = 0; y <= axisRange.yMax; y += yStep) {
+                const py = yToPixel(y);
+                ctx.beginPath();
+                ctx.moveTo(config.margin.left, py);
+                ctx.lineTo(W - config.margin.right, py);
+                ctx.stroke();
+
+                // Y轴刻度
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '12px sans-serif';
+                ctx.textAlign = 'right';
+                ctx.fillText(y + 'm', config.margin.left - 10, py + 4);
+            }
+
+            // 垂直网格线
+            for (let x = 0; x <= axisRange.xMax; x += xStep) {
+                const px = xToPixel(x);
+                ctx.beginPath();
+                ctx.moveTo(px, config.margin.top);
+                ctx.lineTo(px, groundY);
+                ctx.stroke();
+
+                // X轴刻度
+                if (x > 0) {
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(x + 'm', px, groundY + 20);
+                }
+            }
+
+            // 坐标轴
+            ctx.strokeStyle = '#64748b';
+            ctx.lineWidth = 2;
+
+            // Y轴
+            ctx.beginPath();
+            ctx.moveTo(config.margin.left, config.margin.top);
+            ctx.lineTo(config.margin.left, groundY);
+            ctx.stroke();
+
+            // X轴
+            ctx.beginPath();
+            ctx.moveTo(config.margin.left, groundY);
+            ctx.lineTo(W - config.margin.right, groundY);
+            ctx.stroke();
+
+            // 绘制轨迹和球
+            balls.forEach(ball => {
+                const posData = pos[ball.name];
+
+                // 轨迹
+                ctx.beginPath();
+                ctx.strokeStyle = ball.color;
+                ctx.lineWidth = 3;
+                const steps = Math.min(100, Math.floor(t * 20));
+                for (let i = 0; i <= steps; i++) {
+                    const ti = (t * i) / steps;
+                    const p = getPositions(ti)[ball.name];
+                    const px = xToPixel(p.x);
+                    const py = yToPixel(Math.max(0, p.y));
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+
+                // 小球
+                const bx = xToPixel(posData.x);
+                const by = yToPixel(Math.max(0, posData.y));
+
+                // 阴影
+                ctx.beginPath();
+                ctx.arc(bx + 2, by + 2, 10, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fill();
+
+                // 球体
+                const grad = ctx.createRadialGradient(bx - 3, by - 3, 0, bx, by, 10);
+                grad.addColorStop(0, lighten(ball.color, 30));
+                grad.addColorStop(1, ball.color);
+                ctx.beginPath();
+                ctx.arc(bx, by, 10, 0, Math.PI * 2);
+                ctx.fillStyle = grad;
+                ctx.fill();
+
+                // 高光
+                ctx.beginPath();
+                ctx.arc(bx - 3, by - 3, 3, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                ctx.fill();
+
+                // 标签
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(ball.label, bx, by - 14);
+
+                // 红色小球显示速度分解箭头
+                if (ball.name === 'projectile' && t > 0 && pos.projectile.y > 0) {
+                    const arrowScale = 5;  // 箭头缩放
+                    const arrowLenX = pos.vx * arrowScale;
+                    const arrowLenY = pos.vy * arrowScale;
+
+                    // 水平箭头（蓝色，vx）
+                    if (arrowLenX > 5) {
+                        drawArrow(bx, by, bx + arrowLenX, by, '#3b82f6');
+                    }
+
+                    // 垂直箭头（绿色，vy，向下）
+                    if (arrowLenY > 5) {
+                        drawArrow(bx, by, bx, by + arrowLenY, '#22c55e');
+                    }
+                }
+            });
+
+            // 起点标记
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText('起点', config.margin.left - 5, yToPixel(config.h) - 10);
+
+            // 更新数据
+            document.getElementById('time').textContent = t.toFixed(2) + ' s';
+            document.getElementById('xVal').textContent = pos.projectile.x.toFixed(2) + ' m';
+            document.getElementById('yVal').textContent = (config.h - pos.projectile.y).toFixed(2) + ' m';
+            document.getElementById('vVal').textContent = pos.v.toFixed(2) + ' m/s';
+            document.getElementById('vxVal').textContent = pos.vx.toFixed(2);
+            document.getElementById('vyVal').textContent = pos.vy.toFixed(2);
+        }
+
+        // 动画循环
+        function animate(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            const dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+
+            if (isAnimating) {
+                t += dt * config.speed;
+
+                // 检查落地
+                const landingTime = Math.sqrt(2 * config.h / config.g);
+                if (t >= landingTime) {
+                    t = landingTime;
+                    isAnimating = false;
+                    document.getElementById('startBtn').textContent = '重新开始';
+                }
+            }
+
+            draw();
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // 控制函数
+        function start() {
+            const landingTime = Math.sqrt(2 * config.h / config.g);
+            if (t >= landingTime) {
+                t = 0;
+            }
+            isAnimating = true;
+            lastTime = 0;
+            document.getElementById('startBtn').textContent = '暂停';
+        }
+
+        function reset() {
+            isAnimating = false;
+            t = 0;
+            lastTime = 0;
+            document.getElementById('startBtn').textContent = '开始演示';
+            draw();
+        }
+
+        function updateParam() {
+            config.v0 = parseFloat(document.getElementById('v0Slider').value);
+            config.h = parseFloat(document.getElementById('hSlider').value);
+            document.getElementById('v0Val').textContent = config.v0;
+            document.getElementById('hVal').textContent = config.h;
+            reset();
+        }
+
+        function updateSpeed() {
+            config.speed = parseFloat(document.getElementById('speedSlider').value);
+            document.getElementById('speedVal').textContent = config.speed.toFixed(1);
+        }
+
+        // 颜色工具
+        function lighten(color, percent) {
+            const num = parseInt(color.replace('#', ''), 16);
+            const amt = Math.round(2.55 * percent);
+            const R = Math.min(255, (num >> 16) + amt);
+            const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+            const B = Math.min(255, (num & 0x0000FF) + amt);
+            return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+        }
+
+        // 启动
+        draw();
+        animationId = requestAnimationFrame(animate);
+    </script>
+</body>
+
+</html>

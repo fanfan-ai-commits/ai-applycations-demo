@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>排序算法可视化</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .bar { transition: height 0.15s ease, background-color 0.15s ease; }
+    .no-select { user-select: none; }
+    .message-appear { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .typing-indicator span { animation: bounce 1.4s infinite ease-in-out both; }
+    .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+    .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+  </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+  <div class="container mx-auto px-4 py-6">
+    <h1 class="text-3xl font-bold text-center mb-6">排序算法可视化</h1>
+    <div class="flex flex-col lg:flex-row gap-6">
+      <div class="w-full lg:w-2/5 bg-gray-800 rounded-xl p-5 shadow-lg">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-semibold">📚 选择算法</h2>
+          <div class="flex gap-2">
+            <button onclick="startSort()" id="btn-start" class="bg-green-600 hover:bg-green-500 px-3 py-1.5 rounded-lg font-semibold text-sm transition">▶ 开始</button>
+            <button onclick="pauseSort()" id="btn-pause" class="bg-yellow-600 hover:bg-yellow-500 px-3 py-1.5 rounded-lg font-semibold text-sm transition disabled:opacity-50" disabled>⏸ 暂停</button>
+            <button onclick="resetSort()" class="bg-red-600 hover:bg-red-500 px-3 py-1.5 rounded-lg font-semibold text-sm transition">⏹ 重置</button>
+          </div>
+        </div>
+        <div class="space-y-2 mb-6">
+          <button onclick="selectAlgorithm('bubble')" class="algo-btn w-full text-left px-4 py-3 rounded-lg bg-blue-600 hover:bg-blue-500 transition" data-algo="bubble">🫧 冒泡排序</button>
+          <button onclick="selectAlgorithm('selection')" class="algo-btn w-full text-left px-4 py-3 rounded-lg bg-gray-700 hover:bg-gray-600 transition" data-algo="selection">🎯 选择排序</button>
+          <button onclick="selectAlgorithm('insertion')" class="algo-btn w-full text-left px-4 py-3 rounded-lg bg-gray-700 hover:bg-gray-600 transition" data-algo="insertion">🃏 插入排序</button>
+          <button onclick="selectAlgorithm('merge')" class="algo-btn w-full text-left px-4 py-3 rounded-lg bg-gray-700 hover:bg-gray-600 transition" data-algo="merge">🔀 归并排序</button>
+          <button onclick="selectAlgorithm('quick')" class="algo-btn w-full text-left px-4 py-3 rounded-lg bg-gray-700 hover:bg-gray-600 transition" data-algo="quick">⚡ 快速排序</button>
+          <button onclick="selectAlgorithm('heap')" class="algo-btn w-full text-left px-4 py-3 rounded-lg bg-gray-700 hover:bg-gray-600 transition" data-algo="heap">🏗️ 堆排序</button>
+        </div>
+        <div id="algo-desc" class="bg-gray-700 rounded-lg p-5 mb-6">
+          <h3 class="font-semibold text-blue-400 mb-2 text-lg">冒泡排序 Bubble Sort</h3>
+          <p class="text-sm text-gray-300 mb-3">重复地走访要排序的数列，一次比较两个元素，如果顺序错误就交换。越大的元素会逐渐"冒泡"到顶端。</p>
+          <div class="grid grid-cols-3 gap-2 text-xs mb-4">
+            <div class="bg-gray-600 rounded p-2 text-center">
+              <p class="text-gray-400">⏱️ 时间复杂度</p>
+              <p class="text-yellow-400 font-semibold">O(n²)</p>
+            </div>
+            <div class="bg-gray-600 rounded p-2 text-center">
+              <p class="text-gray-400">💾 空间复杂度</p>
+              <p class="text-yellow-400 font-semibold">O(1)</p>
+            </div>
+            <div class="bg-gray-600 rounded p-2 text-center">
+              <p class="text-gray-400">✅ 稳定性</p>
+              <p class="text-green-400 font-semibold">稳定</p>
+            </div>
+          </div>
+          <div class="space-y-2 text-s">
+            <div class="bg-gray-600 rounded p-2">
+              <p class="text-blue-400 font-semibold mb-1">📌 适用场景</p>
+              <p class="text-gray-300">• 数据量较小或基本有序的数组</p>
+              <p class="text-gray-300">• 教学演示和理解排序算法原理</p>
+              <p class="text-gray-300">• 空间受限且需要原地排序的情况</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="w-full lg:w-3/4">
+        <div class="bg-gray-800 rounded-xl p-4 shadow-lg mb-4">
+          <div class="flex justify-between text-sm mb-2">
+            <span>比较次数: <b id="compare-count" class="text-yellow-400">0</b></span>
+            <span>交换次数: <b id="swap-count" class="text-yellow-400">0</b></span>
+          </div>
+          <div id="bars-container" class="flex items-end justify-center gap-4 h-80 lg:h-96 no-select"></div>
+        </div>
+        <div class="bg-gray-800 rounded-xl p-4 shadow-lg mb-4">
+          <div class="flex flex-wrap items-center gap-4">
+            <div class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-blue-500"></span><span class="text-sm">待排序</span></div>
+            <div class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-yellow-400"></span><span class="text-sm">比较中</span></div>
+            <div class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-red-500"></span><span class="text-sm">交换中</span></div>
+            <div class="flex items-center gap-2"><span class="w-4 h-4 rounded bg-green-500"></span><span class="text-sm">已排序</span></div>
+            <div class="flex-1 text-right text-gray-400 text-sm">状态: <span id="status" class="text-white">等待开始</span></div>
+          </div>
+        </div>
+        <div class="bg-gray-800 rounded-xl p-4 shadow-lg">
+          <div class="flex items-center gap-2 mb-3"><span class="text-xl">🤖</span><h3 class="font-semibold">AI 问答</h3><span class="text-xs text-gray-400">(基于当前算法智能解答)</span></div>
+          <div id="chat-container" class="h-48 overflow-y-auto mb-3 space-y-3 p-2 bg-gray-700 rounded-lg">
+            <div class="text-sm text-gray-300 message-appear">
+              <span class="text-blue-400 font-semibold">AI:</span> 你好！我是你的排序算法助手，可以问我任何关于排序算法的问题，比如：
+              <ul class="list-disc list-inside mt-2 ml-2 text-gray-400">
+                <li>"为什么快速排序比冒泡排序快？"</li>
+                <li>"什么是稳定排序？"</li>
+                <li>"归并排序和快速排序有什么区别？"</li>
+              </ul>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <input type="text" id="user-input" placeholder="输入你的问题..." class="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500" onkeypress="if(event.key==='Enter')sendMessage()">
+            <button onclick="sendMessage()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-semibold transition">发送</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const AI_CONFIG = { apiKey: 'sk-xxx', endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', model: 'qwen3-max' };
+    let array = [], isSorting = false, isPaused = false, currentAlgo = 'bubble', compareCount = 0, swapCount = 0, speed = 500, arraySize = 10, stopSort = false;
+    const algoDescriptions = {
+      bubble: { name: '冒泡排序 Bubble Sort', desc: '重复地走访要排序的数列，一次比较两个元素，如果顺序错误就交换。越大的元素会逐渐"冒泡"到顶端。', time: 'O(n²)', space: 'O(1)', stable: '✅ 稳定', scenarios: '• 数据量较小或基本有序的数组\n• 教学演示和理解排序算法原理\n• 空间受限且需要原地排序的情况', prompt: '你现在是一位算法讲师，请用简洁易懂的语言讲解排序算法。用户当前正在学习冒泡排序。' },
+      selection: { name: '选择排序 Selection Sort', desc: '在未排序序列中找到最小（或最大）元素，放到排序序列的起始位置，然后继续处理剩余元素。', time: 'O(n²)', space: 'O(1)', stable: '❌ 不稳定', scenarios: '• 数据量较小且对稳定性无要求的场景\n• 写入次数受限的外部排序\n• 选择排序的交换次数最少，适合交换成本高的场景', prompt: '你现在是一位算法讲师，请用简洁易懂的语言讲解排序算法。用户当前正在学习选择排序。' },
+      insertion: { name: '插入排序 Insertion Sort', desc: '将数组分为已排序和未排序两部分，从未排序部分取元素插入到已排序部分的正确位置。类似整理扑克牌。', time: 'O(n²)', space: 'O(1)', stable: '✅ 稳定', scenarios: '• 数据量较小或基本有序的数组\n• 在线排序，需要边输入边排序\n• 链表排序，因为可以原地操作', prompt: '你现在是一位算法讲师，请用简洁易懂的语言讲解排序算法。用户当前正在学习插入排序。' },
+      merge: { name: '归并排序 Merge Sort', desc: '采用分治法，将数组递归地分成两半分别排序，然后合并两个有序子数组。', time: 'O(nlogn)', space: 'O(n)', stable: '✅ 稳定', scenarios: '• 大规模数据排序，需要稳定性保证\n• 外部排序，处理大规模文件排序\n• 链表排序，因为不需要随机访问', prompt: '你现在是一位算法讲师，请用简洁易懂的语言讲解排序算法。用户当前正在学习归并排序。' },
+      quick: { name: '快速排序 Quick Sort', desc: '选择一个基准元素，将数组分为小于基准和大于基准的两部分，递归地对两部分排序。', time: 'O(nlogn)', space: 'O(logn)', stable: '❌ 不稳定', scenarios: '• 通用排序场景，综合性能优秀\n• 大规模数据排序\n• 需要原地排序且对空间有限制', prompt: '你现在是一位算法讲师，请用简洁易懂的语言讲解排序算法。用户当前正在学习快速排序。' },
+      heap: { name: '堆排序 Heap Sort', desc: '利用堆这种数据结构进行排序。先构建最大堆，然后反复提取最大元素到数组末尾。', time: 'O(nlogn)', space: 'O(1)', stable: '❌ 不稳定', scenarios: '• 优先队列实现\n• 找到第K大/小的元素\n• 内存受限的大规模排序', prompt: '你现在是一位算法讲师，请用简洁易懂的语言讲解排序算法。用户当前正在学习堆排序。' }
+    };
+    async function sendMessage() {
+      const input = document.getElementById('user-input');
+      const message = input.value.trim();
+      if (!message) return;
+      addMessage('user', message);
+      input.value = '';
+      const loadingId = addLoadingMessage();
+      try {
+        const response = await fetch(AI_CONFIG.endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${AI_CONFIG.apiKey}` },
+          body: JSON.stringify({
+            model: AI_CONFIG.model,
+            messages: [{ role: 'system', content: `${algoDescriptions[currentAlgo].prompt}\n\n当前算法的详细信息：\n- 名称：${algoDescriptions[currentAlgo].name}\n- 原理：${algoDescriptions[currentAlgo].desc}\n- 时间复杂度：${algoDescriptions[currentAlgo].time}\n- 空间复杂度：${algoDescriptions[currentAlgo].space}\n- 稳定性：${algoDescriptions[currentAlgo].stable}\n\n请用中文回答，保持简洁有趣。如果用户问的问题和当前学习的算法无关，也可以扩展到其他排序算法的对比。` }, { role: 'user', content: message }],
+            max_tokens: 500, temperature: 0.7
+          })
+        });
+        const data = await response.json();
+        removeLoadingMessage(loadingId);
+        if (data.choices && data.choices[0]) { addMessage('ai', data.choices[0].message.content); } 
+        else { addMessage('ai', '抱歉，我现在有点累了，请稍后再试。错误信息：' + (data.error?.message || '未知错误')); }
+      } catch (error) { removeLoadingMessage(loadingId); addMessage('ai', '网络错误，请检查网络连接后重试。'); console.error('AI Error:', error); }
+    }
+    function addMessage(role, content) {
+      const container = document.getElementById('chat-container');
+      const div = document.createElement('div');
+      div.className = 'message-appear text-sm';
+      if (role === 'user') { div.innerHTML = `<span class="text-green-400 font-semibold">你:</span> ${escapeHtml(content)}`; div.classList.add('text-gray-200'); } 
+      else { div.innerHTML = `<span class="text-blue-400 font-semibold">AI:</span> ${formatMessage(content)}`; }
+      container.appendChild(div); container.scrollTop = container.scrollHeight;
+    }
+    function addLoadingMessage() {
+      const container = document.getElementById('chat-container');
+      const div = document.createElement('div');
+      div.id = 'loading-' + Date.now();
+      div.className = 'message-appear text-sm text-gray-400';
+      div.innerHTML = `<span class="text-blue-400 font-semibold">AI:</span> <span class="typing-indicator inline-flex ml-1"><span class="w-2 h-2 bg-blue-400 rounded-full mx-0.5"></span><span class="w-2 h-2 bg-blue-400 rounded-full mx-0.5"></span><span class="w-2 h-2 bg-blue-400 rounded-full mx-0.5"></span></span>`;
+      container.appendChild(div); container.scrollTop = container.scrollHeight; return div.id;
+    }
+    function removeLoadingMessage(id) { const el = document.getElementById(id); if (el) el.remove(); }
+    function escapeHtml(text) { return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function formatMessage(text) { return text.replace(/\n/g, '<br>').replace(/`([^`]+)`/g, '<code class="bg-gray-600 px-1 rounded text-yellow-300">$1</code>'); }
+    window.onload = () => { generateArray(); setupEventListeners(); };
+    function setupEventListeners() {
+      // 速度控制已移除
+    }
+    function generateArray() {
+      if (isSorting) return;
+      array = [];
+      const container = document.getElementById('bars-container');
+      container.innerHTML = '';
+      for (let i = 0; i < arraySize; i++) {
+        const value = Math.floor(Math.random() * 85) + 10;
+        array.push(value);
+        const bar = document.createElement('div');
+        bar.className = 'bar bg-blue-500 rounded-t flex items-center justify-center';
+        bar.style.height = `${value}%`;
+        bar.style.width = `8%`;
+        if (arraySize <= 20) {
+          const label = document.createElement('span');
+          label.className = 'text-white text-xs';
+          label.textContent = value;
+          bar.appendChild(label);
+        }
+        container.appendChild(bar);
+      }
+      resetStats();
+    }
+    function selectAlgorithm(algo) {
+      if (isSorting) return;
+      currentAlgo = algo;
+      document.querySelectorAll('.algo-btn').forEach(btn => { btn.classList.remove('bg-blue-600'); btn.classList.add('bg-gray-700'); if (btn.dataset.algo === algo) { btn.classList.remove('bg-gray-700'); btn.classList.add('bg-blue-600'); } });
+      const info = algoDescriptions[algo];
+      const scenariosHtml = info.scenarios.split('\n').map(s => `<p class="text-gray-300">${s}</p>`).join('');
+      document.getElementById('algo-desc').innerHTML = `
+        <h3 class="font-semibold text-blue-400 mb-2 text-lg">${info.name}</h3>
+        <p class="text-sm text-gray-300 mb-3">${info.desc}</p>
+        <div class="grid grid-cols-3 gap-2 text-xs mb-3">
+          <div class="bg-gray-600 rounded p-2 text-center">
+            <p class="text-gray-400">⏱️ 时间复杂度</p>
+            <p class="text-yellow-400 font-semibold">${info.time}</p>
+          </div>
+          <div class="bg-gray-600 rounded p-2 text-center">
+            <p class="text-gray-400">💾 空间复杂度</p>
+            <p class="text-yellow-400 font-semibold">${info.space}</p>
+          </div>
+          <div class="bg-gray-600 rounded p-2 text-center">
+            <p class="text-gray-400">✅ 稳定性</p>
+            <p class="${info.stable.includes('✅') ? 'text-green-400' : 'text-red-400'} font-semibold">${info.stable}</p>
+          </div>
+        </div>
+        <div class="space-y-2 text-s">
+          <div class="bg-gray-600 rounded p-2">
+            <p class="text-blue-400 font-semibold mb-1">📌 适用场景</p>
+            ${scenariosHtml}
+          </div>
+        </div>`;
+      generateArray();
+    }
+    function delay() { return new Promise(resolve => setTimeout(resolve, speed * 2)); }
+    function resetStats() { compareCount = 0; swapCount = 0; document.getElementById('compare-count').textContent = '0'; document.getElementById('swap-count').textContent = '0'; }
+    function updateStats() { document.getElementById('compare-count').textContent = compareCount; document.getElementById('swap-count').textContent = swapCount; }
+    function getBars() { return document.querySelectorAll('.bar'); }
+    function setBarColor(index, color) { const bars = getBars(); if (bars[index]) { bars[index].className = `bar ${color} rounded-t flex items-center justify-center`; } }
+    async function swap(i, j) {
+      const bars = getBars();
+      setBarColor(i, 'bg-red-500');
+      setBarColor(j, 'bg-red-500');
+      await delay();
+      [array[i], array[j]] = [array[j], array[i]];
+      swapCount++;
+      bars[i].style.height = `${array[i]}%`;
+      bars[j].style.height = `${array[j]}%`;
+      if (arraySize <= 20) {
+        bars[i].querySelector('span')?.remove();
+        bars[j].querySelector('span')?.remove();
+        const labelI = document.createElement('span'); labelI.className = 'text-white text-xs mb-1'; labelI.textContent = array[i]; bars[i].appendChild(labelI);
+        const labelJ = document.createElement('span'); labelJ.className = 'text-white text-xs mb-1'; labelJ.textContent = array[j]; bars[j].appendChild(labelJ);
+      }
+      updateStats();
+      await delay();
+      setBarColor(i, 'bg-blue-500');
+      setBarColor(j, 'bg-blue-500');
+    }
+    function checkPaused() { while (isPaused && isSorting) {} }
+    async function bubbleSort() {
+      const n = array.length;
+      for (let i = 0; i < n - 1; i++) {
+        for (let j = 0; j < n - i - 1; j++) {
+          if (stopSort) return;
+          checkPaused();
+          setBarColor(j, 'bg-yellow-400');
+          setBarColor(j + 1, 'bg-yellow-400');
+          compareCount++;
+          updateStats();
+          await delay();
+          if (array[j] > array[j + 1]) { await swap(j, j + 1); }
+          setBarColor(j, 'bg-blue-500');
+          setBarColor(j + 1, 'bg-blue-500');
+        }
+        setBarColor(n - i - 1, 'bg-green-500');
+      }
+      setBarColor(0, 'bg-green-500');
+    }
+    async function selectionSort() {
+      const n = array.length;
+      for (let i = 0; i < n - 1; i++) {
+        let minIdx = i;
+        setBarColor(i, 'bg-yellow-400');
+        for (let j = i + 1; j < n; j++) {
+          if (stopSort) return;
+          checkPaused();
+          setBarColor(j, 'bg-yellow-400');
+          compareCount++;
+          updateStats();
+          await delay();
+          if (array[j] < array[minIdx]) { setBarColor(minIdx, 'bg-blue-500'); minIdx = j; setBarColor(minIdx, 'bg-red-500'); } 
+          else { setBarColor(j, 'bg-blue-500'); }
+        }
+        if (minIdx !== i) { await swap(i, minIdx); }
+        setBarColor(i, 'bg-green-500');
+        setBarColor(minIdx, 'bg-blue-500');
+      }
+      setBarColor(n - 1, 'bg-green-500');
+    }
+    async function insertionSort() {
+      const n = array.length;
+      setBarColor(0, 'bg-green-500');
+      for (let i = 1; i < n; i++) {
+        if (stopSort) return;
+        checkPaused();
+        let j = i;
+        setBarColor(i, 'bg-red-500');
+        await delay();
+        while (j > 0 && array[j - 1] > array[j]) { checkPaused(); await swap(j, j - 1); j--; }
+        setBarColor(j, 'bg-green-500');
+      }
+    }
+    async function mergeSort(start = 0, end = array.length - 1) { if (start >= end) return; if (stopSort) return; const mid = Math.floor((start + end) / 2); await mergeSort(start, mid); await mergeSort(mid + 1, end); await merge(start, mid, end); }
+    async function merge(start, mid, end) {
+      const left = array.slice(start, mid + 1);
+      const right = array.slice(mid + 1, end + 1);
+      let i = 0, j = 0, k = start;
+      while (i < left.length && j < right.length) {
+        if (stopSort) return;
+        checkPaused();
+        setBarColor(start + i, 'bg-yellow-400');
+        setBarColor(mid + 1 + j, 'bg-yellow-400');
+        compareCount++;
+        updateStats();
+        await delay();
+        if (left[i] <= right[j]) { array[k] = left[i]; i++; } 
+        else { array[k] = right[j]; j++; }
+        updateBarHeight(k);
+        setBarColor(k, 'bg-red-500');
+        k++;
+        await delay();
+      }
+      while (i < left.length) { array[k] = left[i]; updateBarHeight(k); setBarColor(k, 'bg-red-500'); i++; k++; await delay(); }
+      while (j < right.length) { array[k] = right[j]; updateBarHeight(k); setBarColor(k, 'bg-red-500'); j++; k++; await delay(); }
+      for (let idx = start; idx <= end; idx++) { setBarColor(idx, 'bg-blue-500'); }
+      await delay();
+    }
+    function updateBarHeight(index) { const bars = getBars(); bars[index].style.height = `${array[index]}%`; if (arraySize <= 20) { bars[index].querySelector('span')?.remove(); const label = document.createElement('span'); label.className = 'text-white text-xs mb-1'; label.textContent = array[index]; bars[index].appendChild(label); } }
+    async function quickSort(low = 0, high = array.length - 1) {
+      if (low < high) { if (stopSort) return; const pi = await partition(low, high); await quickSort(low, pi - 1); await quickSort(pi + 1, high); } 
+      else if (low >= 0 && low < array.length) { setBarColor(low, 'bg-green-500'); }
+    }
+    async function partition(low, high) {
+      const pivot = array[high];
+      setBarColor(high, 'bg-purple-500');
+      let i = low - 1;
+      for (let j = low; j < high; j++) {
+        if (stopSort) return;
+        checkPaused();
+        setBarColor(j, 'bg-yellow-400');
+        compareCount++;
+        updateStats();
+        await delay();
+        if (array[j] < pivot) { i++; if (i !== j) { await swap(i, j); } }
+        setBarColor(j, 'bg-blue-500');
+      }
+      await swap(i + 1, high);
+      setBarColor(i + 1, 'bg-green-500');
+      return i + 1;
+    }
+    async function heapSort() {
+      const n = array.length;
+      for (let i = Math.floor(n / 2) - 1; i >= 0; i--) { await heapify(n, i); }
+      for (let i = n - 1; i > 0; i--) {
+        if (stopSort) return;
+        checkPaused();
+        await swap(0, i);
+        setBarColor(i, 'bg-green-500');
+        await heapify(i, 0);
+      }
+      setBarColor(0, 'bg-green-500');
+    }
+    async function heapify(n, i) {
+      let largest = i;
+      const left = 2 * i + 1;
+      const right = 2 * i + 2;
+      if (left < n) { setBarColor(left, 'bg-yellow-400'); compareCount++; updateStats(); await delay(); if (array[left] > array[largest]) { largest = left; } setBarColor(left, 'bg-blue-500'); }
+      if (right < n) { setBarColor(right, 'bg-yellow-400'); compareCount++; updateStats(); await delay(); if (array[right] > array[largest]) { largest = right; } setBarColor(right, 'bg-blue-500'); }
+      if (largest !== i) { await swap(i, largest); await heapify(n, largest); }
+    }
+    async function startSort() {
+      if (isSorting) return;
+      isSorting = true;
+      stopSort = false;
+      document.getElementById('btn-start').disabled = true;
+      document.getElementById('btn-pause').disabled = false;
+      document.getElementById('status').textContent = '排序中...';
+      const sortFunctions = { bubble: bubbleSort, selection: selectionSort, insertion: insertionSort, merge: () => mergeSort(), quick: () => quickSort(), heap: heapSort };
+      await sortFunctions[currentAlgo]();
+      const bars = getBars();
+      bars.forEach(bar => { bar.className = 'bar bg-green-500 rounded-t flex items-center justify-center'; });
+      isSorting = false;
+      document.getElementById('btn-start').disabled = false;
+      document.getElementById('btn-pause').disabled = true;
+      document.getElementById('status').textContent = '排序完成!';
+    }
+    function pauseSort() { isPaused = !isPaused; document.getElementById('btn-pause').textContent = isPaused ? '▶ 继续' : '⏸ 暂停'; document.getElementById('status').textContent = isPaused ? '已暂停' : '排序中...'; }
+    function resetSort() { stopSort = true; isSorting = false; isPaused = false; document.getElementById('btn-start').disabled = false; document.getElementById('btn-pause').disabled = true; document.getElementById('btn-pause').textContent = '⏸ 暂停'; document.getElementById('status').textContent = '已重置'; generateArray(); }
+  </script>
+</body>
+</html>
+

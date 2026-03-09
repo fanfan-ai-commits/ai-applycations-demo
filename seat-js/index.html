@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>历史时间线探索器</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            serif: ['Noto Serif SC', 'serif'],
+          },
+          colors: {
+            history: {
+              dark: '#0f172a',
+              card: '#1e293b',
+              accent: '#f59e0b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased overflow-hidden">
+  
+  <!-- 主应用容器 -->
+  <div id="app" class="h-screen flex flex-col">
+    
+    <!-- 顶部导航栏 -->
+    <header class="h-14 bg-slate-800/80 backdrop-blur-md border-b border-slate-700 flex items-center justify-between px-4 shrink-0 z-50">
+      <div class="flex items-center gap-4">
+        <h1 class="text-xl font-serif font-bold text-amber-400">📜 历史时间线</h1>
+        <!-- 时代筛选 -->
+        <select id="eraFilter" class="bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-amber-400">
+          <option value="">全部时代</option>
+          <option value="pre_qin">先秦</option>
+          <option value="qin_han">秦汉</option>
+          <option value="three_kingdoms">三国两晋</option>
+          <option value="sui_tang">隋唐</option>
+          <option value="song_yuan">宋元</option>
+          <option value="ming_qing">明清</option>
+        </select>
+      </div>
+      
+      <!-- 搜索框 -->
+      <div class="relative">
+        <input 
+          type="text" 
+          id="searchInput"
+          placeholder="搜索历史事件、人物..." 
+          class="w-64 bg-slate-700/50 border border-slate-600 rounded-lg px-4 py-2 pl-10 text-sm
+                 focus:outline-none focus:border-amber-400 transition-colors"
+        >
+        <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+      </div>
+      
+      <!-- 视图切换 -->
+      <div class="flex items-center gap-2">
+        <button class="view-btn active" data-view="timeline" title="时间轴视图">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </button>
+        <button class="view-btn" data-view="network" title="知识网络视图">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+          </svg>
+        </button>
+        <button class="view-btn" data-view="map" title="地图视图">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+    
+    <!-- 主内容区 -->
+    <main class="flex-1 flex overflow-hidden">
+      
+      <!-- 时间轴/视图容器 -->
+      <div id="viewContainer" class="flex-1 relative overflow-hidden">
+        <!-- 动态渲染内容 -->
+      </div>
+      
+      <!-- 侧边详情面板 -->
+      <aside id="detailPanel" class="w-96 bg-slate-800 border-l border-slate-700 transform translate-x-full transition-transform duration-300 overflow-y-auto">
+        <!-- 动态渲染详情 -->
+      </aside>
+    </main>
+    
+    <!-- AI对话浮窗 -->
+    <div id="aiChatWidget" class="fixed bottom-6 right-6 z-40"></div>
+  </div>
+  
+  <!-- 加载指示器 -->
+  <div id="loader" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50">
+    <div class="flex flex-col items-center gap-4">
+      <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+      <p class="text-slate-400">加载历史数据中...</p>
+    </div>
+  </div>
+  
+  <script src="js/data/events.js"></script>
+  <script src="js/core/state.js"></script>
+  <script src="js/utils/dom.js"></script>
+  <script src="js/utils/ai.js"></script>
+  <script src="js/components/timeline.js"></script>
+  <script src="js/components/eventCard.js"></script>
+  <script src="js/components/aiChat.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

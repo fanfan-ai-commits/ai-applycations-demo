@@ -1,0 +1,117 @@
+/* ==================== 过渡动画 ==================== */
+
+/* 淡入淡出动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* 滑入滑出动画 */
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all 0.3s ease;
+}
+
+.slide-down-enter-from,
+.slide-down-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+/* ==================== 自定义滚动条 ==================== */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ==================== 输入框样式 ==================== */
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* ==================== 范围滑块样式 ==================== */
+
+input[type="range"] {
+  -webkit-appearance: none;
+  background: transparent;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+input[type="range"]::-moz-range-thumb {
+  height: 20px;
+  width: 20px;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+/* ==================== 其他样式 ==================== */
+
+/* 确保动画平滑 */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 焦点样式 */
+input:focus,
+button:focus {
+  outline: none;
+}
+
+/* 按钮交互样式 */
+button:active {
+  transform: scale(0.98);
+}
+
+/* 链接悬停效果 */
+a:hover {
+  opacity: 0.8;
+}
+
+/* 防止文本选择干扰交互 */
+button,
+input[type="range"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 平滑滚动 */
+html {
+  scroll-behavior: smooth;
+}
+

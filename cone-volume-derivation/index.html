@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>圆锥体积公式推导器</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="min-h-screen">
+  <!-- 背景 -->
+  <div class="background">
+    <div class="stars"></div>
+    <div class="twinkling"></div>
+  </div>
+
+  <!-- 顶部标题栏 -->
+  <header class="header">
+    <h1 class="title">圆锥体积公式推导器</h1>
+    <button id="resetBtn" class="btn btn-outline">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+      </svg>
+      重置
+    </button>
+  </header>
+
+  <!-- 主内容区 -->
+  <main class="main-content">
+    <!-- 左侧导航 -->
+    <nav class="sidebar">
+      <h2 class="sidebar-title">推导方法</h2>
+      <ul class="method-list">
+        <li>
+          <button class="method-btn active" data-method="slice">
+            <span class="method-icon">1</span>
+            <div class="method-info">
+              <span class="method-name">分割法</span>
+              <span class="method-desc">几何切割积分</span>
+            </div>
+          </button>
+        </li>
+        <li>
+          <button class="method-btn" data-method="cylinder">
+            <span class="method-icon">2</span>
+            <div class="method-info">
+              <span class="method-name">圆柱对比法</span>
+              <span class="method-desc">等底等高体积比</span>
+            </div>
+          </button>
+        </li>
+        <li>
+          <button class="method-btn" data-method="experiment">
+            <span class="method-icon">3</span>
+            <div class="method-info">
+              <span class="method-name">实验法</span>
+              <span class="method-desc">排水/沙堆验证</span>
+            </div>
+          </button>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- 中间可视化区域 -->
+    <section class="visualization">
+      <div class="canvas-container">
+        <canvas id="mainCanvas"></canvas>
+      </div>
+      <div class="controls">
+        <button id="playBtn" class="btn btn-primary">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+          </svg>
+          播放
+        </button>
+        <button id="pauseBtn" class="btn btn-secondary">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+          </svg>
+          暂停
+        </button>
+        <button id="replayBtn" class="btn btn-outline">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" />
+          </svg>
+          重播
+        </button>
+        <div class="speed-control">
+          <label>速度:</label>
+          <select id="speedSelect" class="select">
+            <option value="0.5">0.5x</option>
+            <option value="1" selected>1x</option>
+            <option value="2">2x</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右侧推导步骤 -->
+    <aside class="steps-panel">
+      <h2 class="steps-title">推导步骤</h2>
+      <div id="stepsContainer" class="steps-container">
+        <!-- 步骤内容将由JS动态生成 -->
+      </div>
+      <div class="step-controls">
+        <button id="prevStepBtn" class="btn btn-outline btn-sm" disabled>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+          </svg>
+          上一步
+        </button>
+        <button id="nextStepBtn" class="btn btn-primary btn-sm">
+          下一步
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+          </svg>
+        </button>
+      </div>
+    </aside>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
+

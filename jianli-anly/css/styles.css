@@ -1,0 +1,313 @@
+/* 自定义样式 */
+
+/* 动画 */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.4s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s ease-out;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s infinite;
+}
+
+/* 拖拽上传区域 */
+#uploadZone {
+  transition: all 0.3s ease;
+}
+
+#uploadZone:hover {
+  background-color: #f9fafb;
+}
+
+#uploadZone.dragover {
+  background-color: #f0f9ff !important;
+  border-color: #0ea5e9 !important;
+}
+
+/* 分数圆环动画 */
+#scoreCircle {
+  transition: stroke-dashoffset 1s ease-out;
+}
+
+/* 推荐标签 */
+.recommendation-strong {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.recommendation-good {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.recommendation-consider {
+  background-color: #fef9c3;
+  color: #854d0e;
+}
+
+.recommendation-not {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+/* 简历完整度项 */
+.completeness-item {
+  display: flex;
+  align-items: center;
+  justify-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.completeness-item:last-child {
+  border-bottom: none;
+}
+
+.completeness-item .icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.completeness-item .icon.present {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.completeness-item .icon.missing {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+/* 优势/改进项列表 */
+.strengths-list li,
+.improvements-list li {
+  display: flex;
+  align-items: flex-start;
+  space-x: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.strengths-list li::before {
+  content: "•";
+  color: #22c55e;
+  font-weight: bold;
+  margin-right: 0.5rem;
+}
+
+.improvements-list li::before {
+  content: "•";
+  color: #f59e0b;
+  font-weight: bold;
+  margin-right: 0.5rem;
+}
+
+/* 面试问题卡片 */
+.interview-question {
+  background: #f9fafb;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.interview-question:hover {
+  background: #f3f4f6;
+  transform: translateY(-2px);
+}
+
+.interview-question .question-text {
+  font-size: 0.875rem;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.interview-question .question-category {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 0.75rem;
+  border-radius: 0.25rem;
+}
+
+/* 技能标签 */
+.skill-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.75rem;
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  color: #0369a1;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.skill-tag:hover {
+  transform: scale(1.05);
+}
+
+.skill-tag.secondary {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  color: #4b5563;
+}
+
+/* 历史记录项目 */
+.history-item {
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.history-item:hover {
+  background: #f3f4f6;
+}
+
+.history-item .name {
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.25rem;
+}
+
+.history-item .meta {
+  font-size: 0.75rem;
+  color: #6b7280;
+  display: flex;
+  justify-content: space-between;
+}
+
+.history-item .score {
+  font-weight: 600;
+  color: #0ea5e9;
+}
+
+/* 评分条 */
+.rating-bar {
+  transition: width 0.8s ease-out;
+}
+
+/* Toast 通知 */
+.toast-enter {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.toast-exit {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+/* 按钮点击效果 */
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* 输入框焦点 */
+input:focus,
+textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.1);
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* 响应式调整 */
+@media (max-width: 640px) {
+  .history-panel {
+    width: 100% !important;
+  }
+}
+
+/* 打印样式 */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .analysis-result {
+    box-shadow: none;
+    border: 1px solid #e5e7eb;
+  }
+}
+
+/* 骨架屏 */
+.skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+}
+
+@keyframes skeleton-loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* 渐变边框效果 */
+.gradient-border {
+  position: relative;
+}
+
+.gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(135deg, #0ea5e9, #8b5cf6);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}

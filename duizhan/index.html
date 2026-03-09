@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>栈与队列可视化 - 数据结构演示</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .bar { transition: height 0.2s ease, background-color 0.2s ease; }
+    .queue-item { transition: all 0.2s ease; }
+    .stack-container { display: flex; flex-direction: column-reverse; }
+    .highlight { animation: pulse 0.5s ease-in-out; }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    .btn-active { background-color: #2563eb !important; }
+  </style>
+</head>
+<body class="bg-gray-800 text-white min-h-screen">
+  <div class="container mx-auto px-4 py-8">
+    <!-- 标题 -->
+    <h1 class="text-3xl font-bold text-center mb-8">
+      <span class="text-blue-400">📚</span> 栈与队列可视化
+    </h1>
+
+    <!-- 栈与队列对比 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      
+      <!-- 栈 -->
+      <div class="bg-gray-700 rounded-xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold text-blue-400">📚 栈 Stack</h2>
+          <span class="text-sm bg-blue-600 px-3 py-1 rounded-full">LIFO 后进先出</span>
+        </div>
+        
+        <p class="text-gray-300 text-sm mb-4">栈是一种受限的线性表，只允许在表尾进行插入和删除操作。</p>
+        
+        <!-- 栈可视化 -->
+        <div class="bg-gray-600 rounded-lg p-4 mb-4">
+          <div id="stack-container" class="stack-container h-64 border-2 border-dashed border-gray-500 rounded-lg p-2 gap-1 flex flex-col-reverse overflow-y-auto">
+          </div>
+        </div>
+        
+        <!-- 操作按钮 -->
+        <div class="flex gap-2 mb-4">
+          <input type="text" id="stack-input" placeholder="输入数值" class="flex-1 px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg focus:outline-none focus:border-blue-500 text-center">
+          <button onclick="stackPush()" class="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg transition">📥 入栈</button>
+          <button onclick="stackPop()" class="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg transition">📤 出栈</button>
+        </div>
+        
+        <!-- 栈信息 -->
+        <div class="grid grid-cols-2 gap-2 text-sm">
+          <div class="bg-gray-600 rounded p-2 text-center">
+            <p class="text-gray-400">栈顶</p>
+            <p id="stack-top" class="text-yellow-400 font-semibold">-</p>
+          </div>
+          <div class="bg-gray-600 rounded p-2 text-center">
+            <p class="text-gray-400">元素个数</p>
+            <p id="stack-count" class="text-yellow-400 font-semibold">0</p>
+          </div>
+        </div>
+        
+        <!-- 代码示例 -->
+        <div class="mt-4 bg-gray-800 rounded-lg p-3">
+          <p class="text-blue-400 text-sm font-semibold mb-2">💻 代码实现</p>
+          <pre class="text-xs text-gray-300 overflow-x-auto"><code>// 入栈
+stack.push(element);
+
+// 出栈
+stack.pop();
+
+// 查看栈顶
+stack[stack.length - 1];</code></pre>
+        </div>
+        
+        <!-- 适用场景 -->
+        <div class="mt-4 bg-gray-600 rounded-lg p-3">
+          <p class="text-blue-400 text-sm font-semibold mb-2">📌 适用场景</p>
+          <ul class="text-xs text-gray-300 space-y-1">
+            <li>• 函数调用栈</li>
+            <li>• 括号匹配</li>
+            <li>• 撤销操作</li>
+            <li>• 表达式求值</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 队列 -->
+      <div class="bg-gray-700 rounded-xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold text-green-400">🚶 队列 Queue</h2>
+          <span class="text-sm bg-green-600 px-3 py-1 rounded-full">FIFO 先进先出</span>
+        </div>
+        
+        <p class="text-gray-300 text-sm mb-4">队列是一种受限的线性表，只允许在表尾插入，在表头删除。</p>
+        
+        <!-- 队列可视化 -->
+        <div class="bg-gray-600 rounded-lg p-4 mb-4">
+          <div id="queue-container" class="h-64 border-2 border-dashed border-gray-500 rounded-lg p-2 gap-1 flex flex-col-reverse overflow-y-auto">
+          </div>
+        </div>
+        
+        <!-- 操作按钮 -->
+        <div class="flex gap-2 mb-4">
+          <input type="text" id="queue-input" placeholder="输入数值" class="flex-1 px-3 py-2 bg-gray-600 border border-gray-500 rounded-lg focus:outline-none focus:border-green-500 text-center">
+          <button onclick="queueEnqueue()" class="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg transition">📥 入队</button>
+          <button onclick="queueDequeue()" class="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg transition">📤 出队</button>
+        </div>
+        
+        <!-- 队列信息 -->
+        <div class="grid grid-cols-3 gap-2 text-sm">
+          <div class="bg-gray-600 rounded p-2 text-center">
+            <p class="text-gray-400">队首</p>
+            <p id="queue-front" class="text-yellow-400 font-semibold">-</p>
+          </div>
+          <div class="bg-gray-600 rounded p-2 text-center">
+            <p class="text-gray-400">队尾</p>
+            <p id="queue-rear" class="text-yellow-400 font-semibold">-</p>
+          </div>
+          <div class="bg-gray-600 rounded p-2 text-center">
+            <p class="text-gray-400">元素个数</p>
+            <p id="queue-count" class="text-yellow-400 font-semibold">0</p>
+          </div>
+        </div>
+        
+        <!-- 代码示例 -->
+        <div class="mt-4 bg-gray-800 rounded-lg p-3">
+          <p class="text-green-400 text-sm font-semibold mb-2">💻 代码实现</p>
+          <pre class="text-xs text-gray-300 overflow-x-auto"><code>// 入队
+queue.enqueue(element);
+
+// 出队
+queue.dequeue();
+
+// 查看队首
+queue[0];</code></pre>
+        </div>
+        
+        <!-- 适用场景 -->
+        <div class="mt-4 bg-gray-600 rounded-lg p-3">
+          <p class="text-green-400 text-sm font-semibold mb-2">📌 适用场景</p>
+          <ul class="text-xs text-gray-300 space-y-1">
+            <li>• 任务调度</li>
+            <li>• 广度优先搜索</li>
+            <li>• 打印机队列</li>
+            <li>• 消息队列</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 栈
+    let stack = [];
+    let isAnimating = false;
+    
+    // 队列
+    let queue = [];
+    
+    function delay() {
+      return new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    // 栈操作
+    async function stackPush() {
+      if (isAnimating) return;
+      const input = document.getElementById('stack-input');
+      const value = input.value.trim();
+      if (!value) return;
+      if (stack.length >= 8) {
+        alert('栈已满！');
+        return;
+      }
+      
+      isAnimating = true;
+      stack.push(value);
+      input.value = '';
+      
+      const container = document.getElementById('stack-container');
+      const bar = document.createElement('div');
+      bar.className = 'bg-blue-500 rounded p-2 text-center text-sm font-semibold highlight';
+      bar.textContent = value;
+      container.appendChild(bar);
+      
+      await delay();
+      bar.classList.remove('highlight');
+      updateStackInfo();
+      isAnimating = false;
+    }
+    
+    async function stackPop() {
+      if (isAnimating) return;
+      if (stack.length === 0) {
+        alert('栈为空！');
+        return;
+      }
+      
+      isAnimating = true;
+      const container = document.getElementById('stack-container');
+      const topBar = container.lastElementChild;
+      
+      topBar.style.backgroundColor = '#ef4444';
+      topBar.style.color = 'white';
+      await delay();
+      
+      stack.pop();
+      topBar.remove();
+      
+      updateStackInfo();
+      isAnimating = false;
+    }
+    
+    function updateStackInfo() {
+      document.getElementById('stack-top').textContent = stack.length > 0 ? stack[stack.length - 1] : '-';
+      document.getElementById('stack-count').textContent = stack.length;
+    }
+    
+    // 队列操作
+    async function queueEnqueue() {
+      if (isAnimating) return;
+      const input = document.getElementById('queue-input');
+      const value = input.value.trim();
+      if (!value) return;
+      if (queue.length >= 8) {
+        alert('队列已满！');
+        return;
+      }
+      
+      isAnimating = true;
+      queue.push(value);
+      input.value = '';
+      
+      const container = document.getElementById('queue-container');
+      const item = document.createElement('div');
+      item.className = 'bg-green-500 rounded p-2 text-center text-sm font-semibold highlight';
+      item.textContent = value;
+      container.appendChild(item);
+      
+      await delay();
+      item.classList.remove('highlight');
+      updateQueueInfo();
+      isAnimating = false;
+    }
+    
+    async function queueDequeue() {
+      if (isAnimating) return;
+      if (queue.length === 0) {
+        alert('队列为空！');
+        return;
+      }
+      
+      isAnimating = true;
+      const container = document.getElementById('queue-container');
+      const firstItem = container.firstElementChild;
+      
+      firstItem.style.backgroundColor = '#ef4444';
+      firstItem.style.color = 'white';
+      await delay();
+      
+      queue.shift();
+      firstItem.remove();
+      
+      updateQueueInfo();
+      isAnimating = false;
+    }
+    
+    function updateQueueInfo() {
+      document.getElementById('queue-front').textContent = queue.length > 0 ? queue[0] : '-';
+      document.getElementById('queue-rear').textContent = queue.length > 0 ? queue[queue.length - 1] : '-';
+      document.getElementById('queue-count').textContent = queue.length;
+    }
+    
+    // 重置
+    function resetAll() {
+      stack = [];
+      queue = [];
+      document.getElementById('stack-container').innerHTML = '';
+      document.getElementById('queue-container').innerHTML = '';
+      updateStackInfo();
+      updateQueueInfo();
+    }
+  </script>
+</body>
+</html>
+

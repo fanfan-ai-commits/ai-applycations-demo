@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚗 斗鸡博弈 - 胆怯游戏</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'tech-bg': '#F8FAFC',
+                        'tech-card': '#FFFFFF',
+                        'tech-accent': '#EFF6FF',
+                        'tech-blue': '#0EA5E9',
+                        'tech-green': '#22C55E',
+                        'tech-red': '#EF4444',
+                        'tech-purple': '#6366F1',
+                    },
+                    fontFamily: {
+                        'title': ['Orbitron', 'sans-serif'],
+                        'body': ['Inter', '-apple-system', 'sans-serif'],
+                        'mono': ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --player-color: #22C55E;
+            --ai-color: #EF4444;
+            --neon-blue: #0EA5E9;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 50%, #F0F9FF 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        /* 赛道背景 */
+        .track-background {
+            background: 
+                repeating-linear-gradient(
+                    90deg,
+                    #E2E8F0 0px,
+                    #E2E8F0 40px,
+                    #CBD5E1 40px,
+                    #CBD5E1 42px
+                ),
+                linear-gradient(180deg, #94A3B8 0%, #64748B 100%);
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .track-center-line {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: repeating-linear-gradient(
+                90deg,
+                #FBBF24 0px,
+                #FBBF24 20px,
+                transparent 20px,
+                transparent 40px
+            );
+            transform: translateY(-50%);
+        }
+
+        /* 赛车样式 */
+        .car {
+            font-size: 2.5rem;
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            transition: all 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+        }
+
+        .car-player {
+            left: 8%;
+        }
+
+        .car-ai {
+            right: 8%;
+            transform: translateY(-50%) scaleX(-1);
+        }
+
+        .car-player.move-forward {
+            left: 42%;
+        }
+
+        .car-player.turn {
+            left: 20%;
+            transform: translateY(-50%) rotate(-30deg);
+        }
+
+        .car-ai.move-forward {
+            right: 42%;
+        }
+
+        .car-ai.turn {
+            right: 20%;
+            transform: translateY(-50%) rotate(30deg) scaleX(-1);
+        }
+
+        /* 碰撞效果 */
+        .crash-effect {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3.5rem;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .crash-effect.show {
+            opacity: 1;
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translate(-50%, -50%) rotate(0deg); }
+            25% { transform: translate(-50%, -50%) rotate(-10deg); }
+            75% { transform: translate(-50%, -50%) rotate(10deg); }
+        }
+
+        /* 按钮样式 - 小尺寸 */
+        .btn-choice {
+            position: relative;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 10px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .btn-forward {
+            background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
+            color: white;
+            box-shadow: 0 3px 10px rgba(34, 197, 94, 0.4);
+        }
+
+        .btn-forward:hover:not(:disabled) {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 5px 15px rgba(34, 197, 94, 0.5);
+        }
+
+        .btn-turn {
+            background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+            color: white;
+            box-shadow: 0 3px 10px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-turn:hover:not(:disabled) {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 5px 15px rgba(99, 102, 241, 0.5);
+        }
+
+        .btn-choice:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* 对话气泡 */
+        .dialog-bubble {
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            animation: slideInUp 0.4s ease-out;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .dialog-ai {
+            background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%);
+            border-left: 4px solid #0EA5E9;
+        }
+
+        .dialog-system {
+            background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%);
+            text-align: center;
+            margin: 8px 20px;
+        }
+
+        .dialog-player {
+            background: linear-gradient(135deg, #DCFCE7 0%, #BBF7D0 100%);
+            border-right: 4px solid #22C55E;
+            text-align: right;
+        }
+
+        /* 历史记录 */
+        .history-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            border: 1px solid #E2E8F0;
+            font-size: 0.875rem;
+        }
+
+        .result-win {
+            color: #22C55E;
+            font-weight: 600;
+        }
+
+        .result-lose {
+            color: #EF4444;
+            font-weight: 600;
+        }
+
+        .result-draw {
+            color: #64748B;
+            font-weight: 600;
+        }
+
+        /* 分数动画 */
+        .score-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .score-value.player {
+            color: #22C55E;
+        }
+
+        .score-value.ai {
+            color: #EF4444;
+        }
+
+        .score-value.changed {
+            transform: scale(1.15);
+        }
+
+        /* 收益矩阵表格 */
+        .matrix-table {
+            border-collapse: separate;
+            border-spacing: 0;
+            overflow: hidden;
+            border-radius: 8px;
+            font-size: 0.75rem;
+        }
+
+        .matrix-table th, .matrix-table td {
+            padding: 8px 10px;
+            text-align: center;
+            border: 1px solid #E2E8F0;
+        }
+
+        .matrix-table th {
+            background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%);
+            font-weight: 600;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.7rem;
+        }
+
+        .matrix-table td:first-child {
+            font-weight: 600;
+            background: #F8FAFC;
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        .matrix-cell-bad {
+            background: #FEE2E2;
+            color: #DC2626;
+        }
+
+        .matrix-cell-good {
+            background: #DCFCE7;
+            color: #16A34A;
+        }
+
+        .matrix-cell-neutral {
+            background: #F1F5F9;
+        }
+
+        /* 游戏结束动画 */
+        .winner-animation {
+            animation: winnerPulse 1s ease-in-out infinite;
+        }
+
+        @keyframes winnerPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* 滚动条 */
+        .dialog-container::-webkit-scrollbar, .history-container::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .dialog-container::-webkit-scrollbar-track, .history-container::-webkit-scrollbar-track {
+            background: #F1F5F9;
+            border-radius: 2px;
+        }
+
+        .dialog-container::-webkit-scrollbar-thumb, .history-container::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 2px;
+        }
+
+        /* 隐藏类备用 */
+        .hidden {
+            display: none !important;
+        }
+
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .car {
+                font-size: 2rem;
+            }
+            
+            .score-value {
+                font-size: 1.5rem;
+            }
+
+            .btn-choice {
+                padding: 10px 12px;
+                font-size: 0.75rem;
+            }
+        }
+
+        /* 弹窗样式 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 24px;
+            padding: 32px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            transform: scale(0.8);
+            transition: transform 0.3s ease;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-overlay.show .modal-content {
+            transform: scale(1);
+        }
+    </style>
+</head>
+<body>
+    <div class="max-w-6xl mx-auto">
+        <!-- 标题区 -->
+        <header id="game-header" class="text-center mb-6">
+            <h1 class="font-title text-2xl md:text-3xl font-black text-gray-800 mb-1 tracking-wider">
+                <span class="text-tech-blue">🚗</span> 斗鸡博弈 <span class="text-tech-blue">🚗</span>
+            </h1>
+            <p class="text-gray-500 text-sm">胆怯游戏 - 看谁先怕输</p>
+        </header>
+
+        <!-- 开始游戏按钮 -->
+        <div id="start-screen" class="bg-tech-card rounded-2xl p-8 shadow-lg mb-6 text-center">
+            <h2 class="font-title text-xl font-bold text-gray-800 mb-4">🤖 智能AI对手</h2>
+            <p class="text-gray-500 mb-6">AI会根据你的历史选择智能调整策略，努力赢得比赛！</p>
+            <button id="start-game" class="bg-gradient-to-r from-tech-blue to-blue-500 text-white font-title font-bold py-3 px-8 rounded-xl text-lg shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                开始游戏 🎮
+            </button>
+        </div>
+
+        <!-- 游戏主界面 -->
+        <div id="game-container" class="hidden">
+            <!-- 顶部信息栏 -->
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                <div class="bg-tech-card rounded-xl p-3 shadow text-center">
+                    <div class="text-gray-500 text-xs mb-1">回合</div>
+                    <div class="font-title text-xl font-bold text-tech-blue" id="round-display">1 / 5</div>
+                </div>
+                <div class="bg-tech-card rounded-xl p-3 shadow text-center">
+                    <div class="text-gray-500 text-xs mb-1">👤 你</div>
+                    <div class="score-value player" id="player-score">0</div>
+                </div>
+                <div class="bg-tech-card rounded-xl p-3 shadow text-center">
+                    <div class="text-gray-500 text-xs mb-1">🤖 AI</div>
+                    <div class="score-value ai" id="ai-score">0</div>
+                </div>
+            </div>
+
+            <!-- 赛道区域 + 按钮 (左右布局) -->
+            <div class="grid grid-cols-5 gap-3 mb-4">
+                <!-- 玩家按钮 -->
+                <div class="bg-tech-card rounded-xl p-3 shadow flex flex-col justify-center">
+                    <div class="text-center text-gray-500 text-xs mb-2">👤 你的选择</div>
+                    <button id="btn-forward" class="btn-choice btn-forward mb-2">
+                        <div>🚗 前进</div>
+                    </button>
+                    <button id="btn-turn" class="btn-choice btn-turn">
+                        <div>🔙 转弯</div>
+                    </button>
+                </div>
+
+                <!-- 赛道 -->
+                <div class="col-span-3 bg-tech-card rounded-xl p-3 shadow">
+                    <div class="track-background h-32 md:h-40 relative">
+                        <div class="track-center-line"></div>
+                        <div class="car car-player" id="player-car">🚗</div>
+                        <div class="car car-ai" id="ai-car">🚗</div>
+                        <div class="crash-effect" id="crash-effect">💥</div>
+                    </div>
+                </div>
+
+                <!-- AI按钮(显示AI的选择) -->
+                <div class="bg-tech-card rounded-xl p-3 shadow flex flex-col justify-center items-center">
+                    <div class="text-center text-gray-500 text-xs mb-2">🤖 AI</div>
+                    <div id="ai-choice-display" class="text-lg font-bold text-tech-red">?</div>
+                    <div id="ai-status-text" class="text-xs text-gray-400 mt-1">等待选择...</div>
+                </div>
+            </div>
+
+            <!-- 收益矩阵+历史 / 对话 (两列布局) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4" style="min-height: 400px;">
+                <!-- 左侧：收益矩阵 + 历史 -->
+                <div class="flex flex-col gap-4">
+                    <!-- 收益矩阵 -->
+                    <div class="bg-tech-card rounded-xl p-4 shadow">
+                        <h3 class="font-title font-bold text-gray-700 mb-3 text-sm text-center">📊 收益矩阵</h3>
+                        <div class="overflow-x-auto">
+                            <table class="matrix-table w-full">
+                                <thead>
+                                    <tr>
+                                        <th>你\AI</th>
+                                        <th>前进</th>
+                                        <th>转弯</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>前进</td>
+                                        <td class="matrix-cell-bad">-100</td>
+                                        <td class="matrix-cell-good">+10</td>
+                                    </tr>
+                                    <tr>
+                                        <td>转弯</td>
+                                        <td class="matrix-cell-good">-5</td>
+                                        <td class="matrix-cell-neutral">0</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-2 text-center">前前=撞车双输</p>
+                    </div>
+
+                    <!-- 历史记录 -->
+                    <div class="bg-tech-card rounded-xl p-4 shadow flex-1">
+                        <h3 class="font-title font-bold text-gray-700 mb-2 text-sm">📜 历史</h3>
+                        <div class="history-container h-full overflow-y-auto" id="history-container">
+                            <p class="text-gray-400 text-center py-4 text-sm">等待开始...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧：对话 -->
+                <div class="bg-tech-card rounded-xl p-4 shadow">
+                    <h3 class="font-title font-bold text-gray-700 mb-2 text-sm">💬 对话</h3>
+                    <div class="dialog-container h-[360px] overflow-y-auto" id="dialog-container">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 游戏结束弹窗 -->
+            <div id="game-over" class="modal-overlay">
+                <div class="modal-content">
+                    <div class="text-5xl mb-4" id="game-over-icon">🏆</div>
+                    <h2 class="font-title text-2xl font-bold text-gray-800 mb-2" id="game-over-title">游戏结束!</h2>
+                    <p class="text-gray-500 mb-6" id="game-over-message">最终比分</p>
+                    
+                    <div class="flex justify-center gap-8 mb-6">
+                        <div class="text-center">
+                            <div class="text-3xl font-mono font-bold text-tech-green" id="final-player">0</div>
+                            <div class="text-sm text-gray-500">你的得分</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-3xl font-mono font-bold text-tech-red" id="final-ai">0</div>
+                            <div class="text-sm text-gray-500">AI得分</div>
+                        </div>
+                    </div>
+                    
+                    <button id="restart-game" class="bg-gradient-to-r from-tech-blue to-blue-500 text-white font-title font-bold py-3 px-8 rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+                        再来一局 🔄
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== 游戏配置 ==========
+        const API_CONFIG = {
+            apiKey: 'sk-xxx',
+            endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+            model: 'qwen3-max',
+            timeout: 30000
+        };
+
+        const MAX_ROUNDS = 5;
+
+        // 收益矩阵
+        const PAYOFF_MATRIX = {
+            forward: {
+                forward: { player: -100, ai: -100 },
+                turn: { player: 10, ai: -5 }
+            },
+            turn: {
+                forward: { player: -5, ai: 10 },
+                turn: { player: 0, ai: 0 }
+            }
+        };
+
+        // AI对话库
+        const AI_DIALOGS = {
+            start: [
+                "准备好了吗？我的引擎已经预热好了！🔥",
+                "今天我要让你知道什么叫真正的车神！💪",
+                "别说我没提醒你，刹车失灵了！😈",
+                "放马过来吧，胆小儿！🚗"
+            ],
+            playerForward: [
+                "哇！来真的？奉陪到底！",
+                "有意思，我也踩油门了！",
+                "这可是你自找的！",
+                "够胆！谁怕谁啊！"
+            ],
+            playerTurn: [
+                "哈哈，知道怕了吧？😏",
+                "识时务者为俊杰嘛～",
+                "又是个孬种！",
+                "就知道你不敢！"
+            ],
+            crash: [
+                "我靠！都疯了吗？！💥",
+                "这一下够疼的！😵",
+                "两个都不要命的！",
+                "疯了疯了！🚑"
+            ],
+            aiWin: [
+                "服了吧？跟我斗！😎",
+                "轻轻松松搞定你！",
+                "你还不是我的对手！"
+            ],
+            aiLose: [
+                "不可能！绝对是运气！😱",
+                "这次是你走了狗屎运！",
+                "大意了！再来一局！"
+            ],
+            draw: [
+                "平手！再来！",
+                "不分胜负啊！",
+                "有两下子嘛！"
+            ]
+        };
+
+        // ========== 游戏状态 ==========
+        let gameState = {
+            round: 1,
+            playerScore: 0,
+            aiScore: 0,
+            history: [],
+            playerHistory: [],
+            isPlaying: false,
+            gameStarted: false
+        };
+
+        // ========== DOM 元素 ==========
+        const elements = {
+            gameHeader: document.getElementById('game-header'),
+            startScreen: document.getElementById('start-screen'),
+            gameContainer: document.getElementById('game-container'),
+            roundDisplay: document.getElementById('round-display'),
+            playerScore: document.getElementById('player-score'),
+            aiScore: document.getElementById('ai-score'),
+            playerCar: document.getElementById('player-car'),
+            aiCar: document.getElementById('ai-car'),
+            aiChoiceDisplay: document.getElementById('ai-choice-display'),
+            aiStatusText: document.getElementById('ai-status-text'),
+            crashEffect: document.getElementById('crash-effect'),
+            btnForward: document.getElementById('btn-forward'),
+            btnTurn: document.getElementById('btn-turn'),
+            dialogContainer: document.getElementById('dialog-container'),
+            historyContainer: document.getElementById('history-container'),
+            gameOver: document.getElementById('game-over'),
+            gameOverIcon: document.getElementById('game-over-icon'),
+            gameOverTitle: document.getElementById('game-over-title'),
+            gameOverMessage: document.getElementById('game-over-message'),
+            finalPlayer: document.getElementById('final-player'),
+            finalAi: document.getElementById('final-ai'),
+            startGame: document.getElementById('start-game'),
+            restartGame: document.getElementById('restart-game')
+        };
+
+        // ========== 工具函数 ==========
+        function getRandomDialog(dialogs) {
+            return dialogs[Math.floor(Math.random() * dialogs.length)];
+        }
+
+        function updateScore(element, newScore) {
+            element.textContent = newScore;
+            element.classList.add('changed');
+            setTimeout(() => element.classList.remove('changed'), 300);
+        }
+
+        function addDialog(text, type = 'system') {
+            const bubble = document.createElement('div');
+            bubble.className = `dialog-bubble dialog-${type}`;
+            bubble.innerHTML = `
+                <div class="text-xs text-gray-500 mb-1">${type === 'ai' ? '🤖 AI' : type === 'player' ? '👤 你' : '📢'}</div>
+                <div class="font-body text-sm">${text}</div>
+            `;
+            elements.dialogContainer.appendChild(bubble);
+            elements.dialogContainer.scrollTop = elements.dialogContainer.scrollHeight;
+        }
+
+        function updateHistory() {
+            if (gameState.history.length === 0) {
+                elements.historyContainer.innerHTML = '<p class="text-gray-400 text-center py-4 text-sm">等待开始...</p>';
+                return;
+            }
+
+            let html = '';
+            gameState.history.forEach((item, index) => {
+                let resultClass, resultText;
+                if (item.playerDelta > item.aiDelta) {
+                    resultClass = 'result-win';
+                    resultText = `+${item.playerDelta}`;
+                } else if (item.playerDelta < item.aiDelta) {
+                    resultClass = 'result-lose';
+                    resultText = `${item.playerDelta}`;
+                } else {
+                    resultClass = 'result-draw';
+                    resultText = '0';
+                }
+
+                html += `
+                    <div class="history-item">
+                        <div class="text-gray-500 text-xs">${index + 1}</div>
+                        <div class="flex items-center gap-1">
+                            <span class="${item.playerChoice === '前进' ? 'text-tech-green' : 'text-tech-purple'}">${item.playerChoice === '前进' ? '🚗' : '🔙'}</span>
+                            <span class="text-gray-300">-</span>
+                            <span class="${item.aiChoice === '前进' ? 'text-tech-red' : 'text-tech-purple'}">${item.aiChoice === '前进' ? '🚗' : '🔙'}</span>
+                        </div>
+                        <div class="${resultClass} font-mono text-xs">${resultText}</div>
+                    </div>
+                `;
+            });
+            elements.historyContainer.innerHTML = html;
+        }
+
+        // ========== AI 决策 - 调用 API ==========
+        async function getAIDecision() {
+            // 构建包含历史信息的prompt
+            const historyInfo = gameState.playerHistory.length > 0 
+                ? `玩家历史选择: ${gameState.playerHistory.map(p => p === 'forward' ? '前进' : '转弯').join(', ')}` 
+                : '这是第一轮，玩家还没有任何选择';
+            
+            const scoreInfo = `当前比分 - 玩家: ${gameState.playerScore}, AI: ${gameState.aiScore}`;
+            const roundInfo = `当前是第 ${gameState.round} / ${MAX_ROUNDS} 轮`;
+
+            const systemPrompt = `你是"斗鸡博弈"游戏的AI对手。你需要根据以下信息做出最优决策来赢得比赛。
+
+游戏规则：
+- 如果双方都"前进"：撞车，双方都扣100分
+- 如果你"前进"、玩家"转弯"：你赢+10分，玩家-5分
+- 如果你"转弯"、玩家"前进"：你输-5分，玩家+10分  
+- 如果双方都"转弯"：平局，都得0分
+
+当前局势：
+${scoreInfo}
+${roundInfo}
+${historyInfo}
+
+请根据以上信息分析：
+1. 玩家过去的选择模式是什么？
+2. 玩家可能的下一步行动是什么？
+3. 在这种局面下，你选择"前进"或"转弯"哪个对你更有利？
+
+请用JSON格式返回你的决策，必须包含choice字段：
+{"choice": "forward", "reason": "你的分析(10字以内)"}`;
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
+
+                const response = await fetch(API_CONFIG.endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${API_CONFIG.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: API_CONFIG.model,
+                        messages: [
+                            { role: 'system', content: systemPrompt }
+                        ],
+                        max_tokens: 200,
+                        temperature: 0.5
+                    }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const content = data.choices[0].message.content;
+                
+                console.log('AI决策API返回:', content);
+                
+                // 尝试解析JSON
+                try {
+                    const result = JSON.parse(content);
+                    const choice = result.choice ? result.choice.toLowerCase().trim() : 'forward';
+                    if (choice === 'forward' || choice === 'turn') {
+                        return choice;
+                    }
+                    return 'forward';
+                } catch {
+                    // 解析失败，默认前进
+                    return 'forward';
+                }
+            } catch (error) {
+                console.log('API调用失败，使用智能策略:', error);
+                // API失败时的降级策略：分析玩家历史
+                return getFallbackStrategy();
+            }
+        }
+
+        // 降级策略：根据玩家历史和当前局势做更聪明的决策
+        function getFallbackStrategy() {
+            const history = gameState.playerHistory;
+            const aiScore = gameState.aiScore;
+            const playerScore = gameState.playerScore;
+            const currentRound = gameState.round;
+            const maxRound = MAX_ROUNDS;
+            
+            // 第一轮：随机但偏向进攻
+            if (history.length === 0) {
+                return Math.random() < 0.6 ? 'forward' : 'turn';
+            }
+
+            // 分析玩家模式
+            const forwardCount = history.filter(p => p === 'forward').length;
+            const turnCount = history.filter(p => p === 'turn').length;
+            const forwardRate = forwardCount / history.length;
+            
+            // 玩家最近3轮的选择
+            const recentHistory = history.slice(-3);
+            const recentForwardRate = recentHistory.filter(p => p === 'forward').length / recentHistory.length;
+
+            // 策略1：如果玩家经常前进，AI应该转弯（避免撞车）
+            if (forwardRate > 0.5) {
+                // 玩家进攻性强，转弯躲避
+                return 'turn';
+            }
+            
+            // 策略2：如果玩家最近开始频繁前进，可能想赌我们转弯
+            if (recentForwardRate > 0.6 && forwardRate < 0.5) {
+                // 玩家变激进了，果断前进！
+                return 'forward';
+            }
+            
+            // 策略3：如果玩家经常转弯，AI前进可以赢
+            if (forwardRate < 0.4) {
+                return 'forward';
+            }
+            
+            // 策略4：比分领先时保守，落后时激进
+            const scoreDiff = aiScore - playerScore;
+            if (scoreDiff < -20 && currentRound <= maxRound - 2) {
+                // 落后较多，需要激进
+                return 'forward';
+            }
+            
+            // 默认：随机但保持一定进攻性
+            return Math.random() < 0.55 ? 'forward' : 'turn';
+        }
+
+        // 获取AI对话
+        async function getAIDialog(playerChoice, aiChoice) {
+            const payoff = PAYOFF_MATRIX[playerChoice][aiChoice];
+            let result;
+            
+            if (payoff.player > payoff.ai) {
+                result = 'playerWin';
+            } else if (payoff.player < payoff.ai) {
+                result = 'aiWin';
+            } else {
+                result = 'draw';
+            }
+
+            const systemPrompt = `你是"斗鸡博弈"游戏的AI对手。根据以下游戏结果说一句符合你性格的话：
+
+- 玩家选择了: ${playerChoice === 'forward' ? '前进' : '转弯'}
+- AI(你)选择了: ${aiChoice === 'forward' ? '前进' : '转弯'}
+- 结果: ${result === 'playerWin' ? 'AI输了' : result === 'aiWin' ? 'AI赢了' : '平局'}
+- 当前比分: 玩家 ${gameState.playerScore} vs AI ${gameState.aiScore}
+
+请说一句挑衅、嘲笑或得意的话（1-2句话）。`;
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.timeout);
+
+                const response = await fetch(API_CONFIG.endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${API_CONFIG.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: API_CONFIG.model,
+                        messages: [
+                            { role: 'system', content: systemPrompt }
+                        ],
+                        max_tokens: 100,
+                        temperature: 0.7
+                    }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                return data.choices[0].message.content.trim();
+            } catch (error) {
+                console.log('API对话失败，使用默认对话');
+                return getFallbackDialog(result);
+            }
+        }
+
+        function getFallbackDialog(result) {
+            if (result === 'crash') {
+                return getRandomDialog(AI_DIALOGS.crash);
+            } else if (result === 'aiWin') {
+                return getRandomDialog(AI_DIALOGS.aiWin);
+            } else if (result === 'playerWin') {
+                return getRandomDialog(AI_DIALOGS.aiLose);
+            } else {
+                return getRandomDialog(AI_DIALOGS.draw);
+            }
+        }
+
+        // ========== 游戏动画 ==========
+        async function playRoundAnimation(playerChoice) {
+            // 禁用按钮
+            elements.btnForward.disabled = true;
+            elements.btnTurn.disabled = true;
+
+            // 显示思考中
+            elements.aiChoiceDisplay.textContent = '🤔';
+            elements.aiStatusText.textContent = '思考中...';
+
+            // 保存玩家选择
+            gameState.playerHistory.push(playerChoice);
+
+            // 同时发起AI决策请求和开始动画
+            const aiDecisionPromise = getAIDecision();
+
+            // 重置赛车位置
+            elements.playerCar.className = 'car car-player';
+            elements.aiCar.className = 'car car-ai';
+            elements.crashEffect.classList.remove('show');
+
+            // 开始动画
+            await new Promise(resolve => setTimeout(resolve, 200));
+            
+            // 移动赛车（双方同时移动）
+            if (playerChoice === 'forward') {
+                elements.playerCar.classList.add('move-forward');
+            } else {
+                elements.playerCar.classList.add('turn');
+            }
+
+            // AI也同时移动（暂时显示?，等AI决策完成后显示真实选择）
+            // 等待动画完成
+            await new Promise(resolve => setTimeout(resolve, 600));
+
+            // 撞车效果
+            if (playerChoice === 'forward') {
+                // 如果玩家前进，检查AI决策（需要等待）
+            }
+
+            // 获取AI决策结果
+            const aiChoice = await aiDecisionPromise;
+
+            // 根据AI选择移动AI的车
+            if (aiChoice === 'forward') {
+                elements.aiCar.classList.add('move-forward');
+            } else {
+                elements.aiCar.classList.add('turn');
+            }
+
+            // 等待AI车辆动画
+            await new Promise(resolve => setTimeout(resolve, 200));
+
+            // 显示AI选择
+            elements.aiChoiceDisplay.textContent = aiChoice === 'forward' ? '🚗' : '🔙';
+            elements.aiStatusText.textContent = '已选择';
+
+            // 检查撞车
+            if (playerChoice === 'forward' && aiChoice === 'forward') {
+                elements.crashEffect.classList.add('show');
+            }
+
+            // 获取AI对话
+            const aiDialog = await getAIDialog(playerChoice, aiChoice);
+            
+            // 计算得分
+            const payoff = PAYOFF_MATRIX[playerChoice][aiChoice];
+            gameState.playerScore += payoff.player;
+            gameState.aiScore += payoff.ai;
+
+            // 更新显示
+            updateScore(elements.playerScore, gameState.playerScore);
+            updateScore(elements.aiScore, gameState.aiScore);
+
+            // 记录历史
+            gameState.history.push({
+                round: gameState.round,
+                playerChoice: playerChoice === 'forward' ? '前进' : '转弯',
+                aiChoice: aiChoice === 'forward' ? '前进' : '转弯',
+                playerDelta: payoff.player,
+                aiDelta: payoff.ai
+            });
+
+            // 添加对话
+            addDialog(`你选择了 ${playerChoice === 'forward' ? '前进 🚗' : '转弯 🔙'}`, 'player');
+            
+            // 添加AI对话
+            setTimeout(() => {
+                addDialog(aiDialog, 'ai');
+            }, 300);
+
+            // 更新历史
+            updateHistory();
+
+            // 等待一下
+            await new Promise(resolve => setTimeout(resolve, 800));
+
+            // 小车归位
+            resetCars();
+
+            // 检查游戏是否结束
+            if (gameState.round >= MAX_ROUNDS) {
+                endGame();
+            } else {
+                // 下一轮
+                gameState.round++;
+                elements.roundDisplay.textContent = `${gameState.round} / ${MAX_ROUNDS}`;
+                elements.btnForward.disabled = false;
+                elements.btnTurn.disabled = false;
+                elements.aiChoiceDisplay.textContent = '?';
+                elements.aiStatusText.textContent = '等待选择...';
+            }
+        }
+
+        // 小车归位
+        function resetCars() {
+            elements.playerCar.className = 'car car-player';
+            elements.aiCar.className = 'car car-ai';
+            elements.crashEffect.classList.remove('show');
+        }
+
+        // ========== 游戏流程 ==========
+        function startGame() {
+            // 重置状态
+            gameState.round = 1;
+            gameState.playerScore = 0;
+            gameState.aiScore = 0;
+            gameState.history = [];
+            gameState.playerHistory = [];
+            gameState.isPlaying = true;
+            gameState.gameStarted = true;
+
+            // 更新UI
+            elements.roundDisplay.textContent = '1 / 5';
+            elements.playerScore.textContent = '0';
+            elements.aiScore.textContent = '0';
+            elements.dialogContainer.innerHTML = '';
+            elements.historyContainer.innerHTML = '<p class="text-gray-400 text-center py-4 text-sm">等待开始...</p>';
+            elements.gameOver.classList.remove('show');
+            elements.aiChoiceDisplay.textContent = '?';
+            elements.aiStatusText.textContent = '等待选择...';
+            elements.btnForward.disabled = false;
+            elements.btnTurn.disabled = false;
+
+            // 重置赛车
+            resetCars();
+
+            // 切换界面
+            elements.startScreen.classList.add('hidden');
+            elements.gameContainer.classList.remove('hidden');
+            elements.gameHeader.classList.add('hidden');
+
+            // 开始对话
+            addDialog(getRandomDialog(AI_DIALOGS.start), 'ai');
+        }
+
+        function endGame() {
+            gameState.isPlaying = false;
+            elements.btnForward.disabled = true;
+            elements.btnTurn.disabled = true;
+
+            // 显示游戏结束弹窗
+            elements.gameOver.classList.add('show');
+
+            // 更新最终比分
+            elements.finalPlayer.textContent = gameState.playerScore;
+            elements.finalAi.textContent = gameState.aiScore;
+
+            // 判断胜负
+            if (gameState.playerScore > gameState.aiScore) {
+                elements.gameOverIcon.textContent = '🎉';
+                elements.gameOverTitle.textContent = '你赢了！';
+                elements.gameOverTitle.className = 'font-title text-xl font-bold text-tech-green mb-2 winner-animation';
+                elements.gameOverMessage.textContent = '恭喜！你比AI更勇敢！';
+                addDialog(getRandomDialog(AI_DIALOGS.aiLose), 'ai');
+            } else if (gameState.playerScore < gameState.aiScore) {
+                elements.gameOverIcon.textContent = '😢';
+                elements.gameOverTitle.textContent = 'AI赢了...';
+                elements.gameOverTitle.className = 'font-title text-xl font-bold text-tech-red mb-2';
+                elements.gameOverMessage.textContent = '下次再来挑战吧！';
+                addDialog(getRandomDialog(AI_DIALOGS.aiWin), 'ai');
+            } else {
+                elements.gameOverIcon.textContent = '🤝';
+                elements.gameOverTitle.textContent = '平局！';
+                elements.gameOverTitle.className = 'font-title text-xl font-bold text-tech-blue mb-2';
+                elements.gameOverMessage.textContent = '势均力敌！';
+                addDialog(getRandomDialog(AI_DIALOGS.draw), 'ai');
+            }
+        }
+
+        function restartGame() {
+            elements.gameOver.classList.remove('show');
+            elements.startScreen.classList.remove('hidden');
+            elements.gameContainer.classList.add('hidden');
+            elements.gameHeader.classList.remove('hidden');
+            gameState.gameStarted = false;
+        }
+
+        // ========== 事件绑定 ==========
+        // 开始游戏
+        elements.startGame.addEventListener('click', startGame);
+
+        // 重新开始
+        elements.restartGame.addEventListener('click', restartGame);
+
+        // 选择按钮
+        elements.btnForward.addEventListener('click', () => playRoundAnimation('forward'));
+        elements.btnTurn.addEventListener('click', () => playRoundAnimation('turn'));
+
+        // 键盘支持
+        document.addEventListener('keydown', (e) => {
+            if (!gameState.isPlaying) return;
+            
+            if (e.key === 'ArrowLeft' || e.key === 'a') {
+                elements.btnTurn.click();
+            } else if (e.key === 'ArrowRight' || e.key === 'd') {
+                elements.btnForward.click();
+            }
+        });
+    </script>
+</body>
+</html>

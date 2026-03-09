@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚗️ 化学方程式配平助手</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      font-family: 'Noto Sans SC', sans-serif;
+    }
+    .formula-input {
+      font-family: 'Courier New', monospace;
+    }
+    .fade-in {
+      animation: fadeIn 0.5s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .step-card {
+      border-left: 4px solid #3b82f6;
+    }
+    .atom-count {
+      font-variant-numeric: tabular-nums;
+    }
+    .reaction-type {
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 to-blue-50 min-h-screen">
+  
+  <!-- 顶部导航 -->
+  <header class="bg-white shadow-sm border-b border-slate-200">
+    <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-3xl">⚗️</span>
+        <h1 class="text-xl font-bold text-slate-800">化学方程式配平助手</h1>
+      </div>
+      <button onclick="showHelp()" class="text-sm text-blue-500 hover:text-blue-700 flex items-center gap-1">
+        <span>❓</span> 帮助
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 py-6 space-y-6">
+    
+    <!-- 输入区域 -->
+    <section class="bg-white rounded-2xl shadow-lg p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-slate-700 flex items-center gap-2">
+          <span>📝</span> 输入已知的反应物
+        </h2>
+        <button onclick="clearAll()" 
+          class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium rounded-lg transition-all flex items-center gap-1">
+          <span>🗑️</span> 清空
+        </button>
+      </div>
+      
+      <div class="space-y-4">
+        <!-- 反应物输入区域 -->
+        <div>
+          <label class="block text-sm text-slate-500 mb-2">反应物 <span class="text-slate-400 text-xs">(点击添加更多)</span></label>
+          
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- 反应物输入框容器 -->
+            <div id="reactantsContainer" class="flex flex-wrap items-center gap-2 flex-1">
+              <!-- 第一个反应物 -->
+              <input type="text" class="reactant-input w-28 px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-400 focus:outline-none formula-input text-base"
+                placeholder="H2O"
+                oninput="updateReactantsAndPreview()"
+                onkeypress="if(event.key==='Enter') inferAndBalance()">
+              
+              <span class="text-slate-400 text-lg font-medium">+</span>
+              
+              <!-- 第二个反应物 -->
+              <input type="text" class="reactant-input w-28 px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-400 focus:outline-none formula-input text-base"
+                placeholder="O2"
+                oninput="updateReactantsAndPreview()"
+                onkeypress="if(event.key==='Enter') inferAndBalance()">
+            </div>
+            
+            <!-- 添加反应物按钮 -->
+            <button onclick="addReactantInput()" 
+              class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-all flex items-center gap-1">
+              <span>+</span> 添加
+            </button>
+          </div>
+          
+          <!-- 化学式解析预览 -->
+          <div id="formulaPreview" class="hidden mt-3 bg-slate-50 rounded-xl p-4">
+            <p class="text-sm font-medium text-slate-600 mb-2">📊 化学式解析：</p>
+            <div id="formulaPreviewContent" class="space-y-2">
+            </div>
+          </div>
+          
+          <p class="text-xs text-slate-400 mt-1">💡 输入你知道的反应物，系统会推断生成物并配平</p>
+        </div>
+        
+        <button onclick="inferAndBalance()" 
+          class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2">
+          <span>⚡</span> 推断并配平
+        </button>
+      </div>
+    </section>
+
+    <!-- 加载状态 -->
+    <div id="loading" class="hidden bg-white rounded-2xl shadow-lg p-8 text-center">
+      <div class="animate-spin text-4xl mb-4">⚗️</div>
+      <p class="text-slate-600">正在分析反应物...</p>
+    </div>
+
+    <!-- 错误提示 -->
+    <div id="error" class="hidden bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
+      <span class="text-xl">❌</span>
+      <div>
+        <p class="font-medium text-red-700">无法识别</p>
+        <p id="errorMessage" class="text-sm text-red-600 mt-1"></p>
+      </div>
+    </div>
+
+    <!-- 反应类型识别 -->
+    <section id="reactionType" class="hidden fade-in">
+      <div class="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl p-6 border border-purple-200">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="text-2xl" id="reactionIcon">🔥</span>
+          <div>
+            <h3 class="font-semibold text-purple-800">识别结果</h3>
+            <p id="reactionName" class="text-purple-600 text-sm"></p>
+          </div>
+        </div>
+        <p id="reactionDesc" class="text-slate-600 text-sm"></p>
+      </div>
+    </section>
+
+    <!-- 推断的生成物 -->
+    <section id="inferredProducts" class="hidden fade-in">
+      <div class="bg-white rounded-2xl shadow-lg p-6">
+        <h2 class="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+          <span>🔮</span> 推断的生成物
+        </h2>
+        
+        <div id="inferredProductsList" class="space-y-2 mb-4">
+        </div>
+        
+        <div class="flex gap-2">
+          <button onclick="confirmProducts()" 
+            class="flex-1 bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-xl transition-all">
+            ✅ 确认正确
+          </button>
+          <button onclick="editProducts()" 
+            class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-2 px-4 rounded-xl transition-all">
+            ✏️ 修改
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 生成物编辑 -->
+    <section id="editProducts" class="hidden fade-in">
+      <div class="bg-white rounded-2xl shadow-lg p-6">
+        <h2 class="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+          <span>✏️</span> 确认或修改生成物
+        </h2>
+        
+        <div class="space-y-4">
+          <!-- 生成物输入区域 -->
+          <div>
+            <label class="block text-sm text-slate-500 mb-2">生成物 <span class="text-slate-400 text-xs">(点击添加更多)</span></label>
+            
+            <div class="flex flex-wrap items-center gap-2">
+              <!-- 生成物输入框容器 -->
+              <div id="productsContainer" class="flex flex-wrap items-center gap-2 flex-1">
+                <!-- 第一个生成物 -->
+                <input type="text" class="product-input w-28 px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-400 focus:outline-none formula-input text-base"
+                  placeholder="CO2"
+                  oninput="updateProductsInput()"
+                  onkeypress="if(event.key==='Enter') balanceWithProducts()">
+                
+                <span class="text-slate-400 text-lg font-medium">+</span>
+                
+                <!-- 第二个生成物 -->
+                <input type="text" class="product-input w-28 px-3 py-2 border-2 border-slate-200 rounded-lg focus:border-blue-400 focus:outline-none formula-input text-base"
+                  placeholder="H2O"
+                  oninput="updateProductsInput()"
+                  onkeypress="if(event.key==='Enter') balanceWithProducts()">
+              </div>
+              
+              <!-- 添加生成物按钮 -->
+              <button onclick="addProductInput()" 
+                class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-all flex items-center gap-1">
+                <span>+</span> 添加
+              </button>
+            </div>
+          </div>
+          
+          <button onclick="balanceWithProducts()" 
+            class="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-lg">
+            <span>⚗️</span> 开始配平
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 配平结果 -->
+    <section id="result" class="hidden fade-in">
+      <div class="bg-white rounded-2xl shadow-lg p-6">
+        <h2 class="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+          <span>✅</span> 配平结果
+        </h2>
+        
+        <!-- 方程式展示 -->
+        <div id="equationDisplay" class="text-2xl font-bold text-center py-6 bg-slate-50 rounded-xl mb-6">
+        </div>
+        
+        <!-- 原子数验证 -->
+        <div id="atomVerification" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        </div>
+      </div>
+    </section>
+
+    <!-- 详细讲解 -->
+    <section id="explanation" class="hidden fade-in">
+      <div class="bg-white rounded-2xl shadow-lg p-6">
+        <h2 class="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+          <span>📚</span> 详细讲解 (一看就懂版)
+        </h2>
+        
+        <!-- 方法提示 -->
+        <div id="methodHint" class="bg-blue-50 rounded-xl p-4 mb-4 flex items-start gap-2">
+          <span class="text-xl">💡</span>
+          <p id="methodText" class="text-slate-700"></p>
+        </div>
+        
+        <!-- 步骤列表 -->
+        <div id="steps" class="space-y-4">
+        </div>
+      </div>
+    </section>
+
+    <!-- 氧化还原分析 -->
+    <section id="redoxAnalysis" class="hidden fade-in">
+      <div class="bg-white rounded-2xl shadow-lg p-6">
+        <h2 class="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+          <span>🔋</span> 氧化还原分析
+        </h2>
+        
+        <div id="redoxContent" class="space-y-4">
+        </div>
+      </div>
+    </section>
+
+    <!-- AI 问答 -->
+    <section class="bg-white rounded-2xl shadow-lg p-6">
+      <h2 class="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+        <span>💬</span> 问AI (继续追问)
+      </h2>
+      
+      <div class="space-y-4">
+        <div class="flex gap-2">
+          <input type="text" id="userQuestion" 
+            class="flex-1 px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-400 focus:outline-none text-base"
+            placeholder="例如：为什么生成物是 CO2 和 H2O？"
+            onkeypress="if(event.key==='Enter') askAI()">
+          <button onclick="askAI()" 
+            class="bg-slate-800 hover:bg-slate-900 text-white font-medium py-3 px-6 rounded-xl transition-all">
+            提问
+          </button>
+        </div>
+        
+        <!-- AI 回答 -->
+        <div id="aiAnswer" class="hidden bg-slate-50 rounded-xl p-4 fade-in">
+          <div class="flex items-start gap-2 mb-2">
+            <span class="text-xl">🤖</span>
+            <span class="font-medium text-slate-700">AI回答：</span>
+          </div>
+          <p id="aiAnswerText" class="text-slate-600 leading-relaxed"></p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 帮助弹窗 -->
+  <div id="helpModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 max-h-[80vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-slate-800">📖 使用帮助</h3>
+        <button onclick="closeHelp()" class="text-2xl text-slate-400 hover:text-slate-600">&times;</button>
+      </div>
+      <div class="space-y-4 text-slate-600">
+        <div>
+          <h4 class="font-semibold text-slate-800 mb-1">📝 输入反应物</h4>
+          <p>只输入你<strong>已知</strong>的反应物，不需要知道生成物。</p>
+          <p class="text-sm mt-1">例如：输入 <code class="bg-slate-100 px-1 rounded">CH4 + O2</code> 而不是完整的方程式</p>
+        </div>
+        <div>
+          <h4 class="font-semibold text-slate-800 mb-1">🔮 自动推断</h4>
+          <p>系统会根据化学知识库<strong>自动推断</strong>可能的生成物。</p>
+        </div>
+        <div>
+          <h4 class="font-semibold text-slate-800 mb-1">✏️ 确认或修改</h4>
+          <p>如果推断正确，点击确认；不正确可以手动修改。</p>
+        </div>
+        <div>
+          <h4 class="font-semibold text-slate-800 mb-1">🔢 数字格式</h4>
+          <p>元素后的数字用下标，如 <code class="bg-slate-100 px-1 rounded">H2O</code>、<code class="bg-slate-100 px-1 rounded">CO2</code></p>
+        </div>
+        <div>
+          <h4 class="font-semibold text-slate-800 mb-1">💡 提示</h4>
+          <ul class="list-disc list-inside text-sm space-y-1">
+            <li>目前支持常见反应类型</li>
+            <li>如果有疑问可以直接问AI</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎧 听音识词 - 水果切切乐</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+        }
+        
+        .fruit-card {
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+        }
+        
+        .fruit-card:hover {
+            transform: translateY(-10px) scale(1.05);
+        }
+        
+        .fruit-card:active {
+            transform: scale(0.95);
+        }
+        
+        .fruit-card.correct {
+            animation: correctPulse 0.6s ease-out;
+        }
+        
+        .fruit-card.wrong {
+            animation: wrongShake 0.5s ease-out;
+        }
+        
+        @keyframes correctPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); box-shadow: 0 0 30px #4ade80; }
+            100% { transform: scale(1); }
+        }
+        
+        @keyframes wrongShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-10px); background: #ef4444; }
+            40% { transform: translateX(10px); }
+            60% { transform: translateX(-10px); }
+            80% { transform: translateX(10px); }
+        }
+        
+        .score-popup {
+            position: absolute;
+            font-size: 32px;
+            font-weight: bold;
+            animation: popUp 1s forwards;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        @keyframes popUp {
+            0% { transform: translateY(0) scale(0.5); opacity: 0; }
+            50% { transform: translateY(-30px) scale(1.2); opacity: 1; }
+            100% { transform: translateY(-60px) scale(1); opacity: 0; }
+        }
+        
+        .listen-btn {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            50% { box-shadow: 0 0 0 15px rgba(59, 130, 246, 0); }
+        }
+        
+        .ai-message {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .glow-border {
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+        
+        .wave-animation {
+            animation: wave 1.5s ease-in-out infinite;
+        }
+        
+        @keyframes wave {
+            0%, 100% { transform: scaleY(1); }
+            50% { transform: scaleY(1.5); }
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center min-h-screen py-8">
+    <!-- 游戏头部 -->
+    <div class="fixed top-0 left-0 right-0 z-50 flex justify-between items-center p-4 bg-black/30 backdrop-blur">
+        <div class="text-white">
+            <span class="text-xl">🏆 得分: </span>
+            <span id="score" class="text-2xl font-bold text-yellow-400">0</span>
+        </div>
+        <div class="text-white">
+            <span class="text-lg">⭐ 等级: </span>
+            <span id="level" class="text-xl font-bold text-green-400">1</span>
+        </div>
+        <div class="text-white">
+            <span class="text-lg">❤️ 生命: </span>
+            <span id="lives" class="text-xl font-bold text-red-400">❤️❤️❤️</span>
+        </div>
+    </div>
+
+    <!-- 主游戏区域 -->
+    <div class="w-full max-w-4xl px-4 pt-16">
+        <!-- 听音按钮区域 -->
+        <div class="text-center mb-8">
+            <button 
+                id="listenBtn"
+                onclick="playCurrentWord()"
+                class="listen-btn px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold text-xl rounded-full flex items-center gap-3 mx-auto"
+            >
+                <span class="text-3xl">🔊</span>
+                <span>点击听单词</span>
+            </button>
+            <div id="listenHint" class="text-gray-400 mt-3 text-sm">准备好就点击按钮听AI读单词</div>
+            
+            <!-- 波形动画 -->
+            <div id="waveContainer" class="flex justify-center items-center gap-1 h-8 mt-4 hidden">
+                <div class="w-2 h-4 bg-purple-500 wave-animation" style="animation-delay: 0s"></div>
+                <div class="w-2 h-4 bg-purple-500 wave-animation" style="animation-delay: 0.1s"></div>
+                <div class="w-2 h-4 bg-purple-500 wave-animation" style="animation-delay: 0.2s"></div>
+                <div class="w-2 h-4 bg-purple-500 wave-animation" style="animation-delay: 0.3s"></div>
+                <div class="w-2 h-4 bg-purple-500 wave-animation" style="animation-delay: 0.4s"></div>
+            </div>
+        </div>
+
+        <!-- 水果卡片区域 -->
+        <div id="cardsContainer" class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+            <!-- 卡片将由JS生成 -->
+        </div>
+    </div>
+
+    <!-- AI反馈弹窗 -->
+    <div id="feedbackPopup" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 hidden" onclick="closeFeedback()">
+        <div class="bg-gray-900 p-6 rounded-2xl border-2 border-purple-500 max-w-sm mx-4" onclick="event.stopPropagation()">
+            <div id="feedbackEmoji" class="text-5xl text-center mb-3">🎉</div>
+            <div id="feedbackTitle" class="text-xl font-bold text-white text-center mb-2">太棒了！</div>
+            <div id="feedbackContent" class="text-gray-300 text-center text-sm leading-relaxed"></div>
+            <button 
+                onclick="closeFeedback();"
+                class="mt-4 w-full py-3 bg-gradient-to-r from-green-500 to-blue-500 text-white font-bold rounded-full"
+            >
+                继续下一题 →
+            </button>
+        </div>
+    </div>
+
+    <!-- 开始/结束弹窗 -->
+    <div id="gameModal" class="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div class="bg-gray-900 p-8 rounded-2xl text-center border-2 border-yellow-400 glow-border max-w-md mx-4">
+            <div id="modalEmoji" class="text-6xl mb-4">🎧</div>
+            <h2 id="modalTitle" class="text-2xl font-bold text-white mb-3">听音识词水果切切乐</h2>
+            <p id="modalText" class="text-gray-300 mb-4 text-sm">🎮 玩法：点击🔊听AI读英文单词，点击对应的水果卡片！</p>
+            <div id="aiFeedback" class="hidden mb-4 p-3 rounded-lg ai-message text-white text-left text-sm"></div>
+            <button 
+                id="startBtn"
+                onclick="startGame()"
+                class="px-8 py-3 bg-gradient-to-r from-green-400 to-blue-500 text-white font-bold text-lg rounded-full hover:scale-105 transition-transform"
+            >
+                🎮 开始游戏
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 配置 ====================
+        const AI_CONFIG = {
+            apiKey: 'sk-xxx',
+            endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+            model: 'qwen3-max',
+            timeout: 30000
+        };
+
+        // 水果emoji和单词映射
+        const FRUIT_DATA = [
+            { emoji: '🍎', word: 'apple', hint: '苹果' },
+            { emoji: '🍐', word: 'pear', hint: '梨' },
+            { emoji: '🍊', word: 'orange', hint: '橙子' },
+            { emoji: '🍋', word: 'lemon', hint: '柠檬' },
+            { emoji: '🍌', word: 'banana', hint: '香蕉' },
+            { emoji: '🍉', word: 'watermelon', hint: '西瓜' },
+            { emoji: '🍇', word: 'grape', hint: '葡萄' },
+            { emoji: '🍓', word: 'strawberry', hint: '草莓' },
+            { emoji: '🫐', word: 'blueberry', hint: '蓝莓' },
+            { emoji: '🍒', word: 'cherry', hint: '樱桃' },
+            { emoji: '🥝', word: 'kiwi', hint: '猕猴桃' },
+            { emoji: '🍅', word: 'tomato', hint: '番茄' },
+            { emoji: '🥭', word: 'mango', hint: '芒果' },
+            { emoji: '🍑', word: 'peach', hint: '桃子' },
+            { emoji: '🍍', word: 'pineapple', hint: '菠萝' }
+        ];
+
+        // ==================== 游戏状态 ====================
+        let gameState = {
+            score: 0,
+            level: 1,
+            lives: 3,
+            isPlaying: false,
+            currentRoundWords: [],  // 当前轮次的4个单词
+            targetWord: '',         // 需要听的那个单词
+            hasPlayed: false,       // 本轮是否已经播放语音
+            isProcessing: false     // 是否正在处理答案
+        };
+
+        // ==================== AI 调用函数 ====================
+        async function callAI(prompt) {
+            try {
+                const response = await fetch(AI_CONFIG.endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${AI_CONFIG.apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: AI_CONFIG.model,
+                        messages: [{ role: 'user', content: prompt }],
+                        max_tokens: 500
+                    })
+                });
+
+                const data = await response.json();
+                return data.choices?.[0]?.message?.content || '';
+            } catch (error) {
+                console.error('AI调用失败:', error);
+                return null;
+            }
+        }
+
+        // ==================== 语音播放 ====================
+        function speakWord(word) {
+            return new Promise((resolve) => {
+                // 隐藏波形
+                document.getElementById('waveContainer').classList.add('hidden');
+                
+                if ('speechSynthesis' in window) {
+                    // 停止之前的语音
+                    speechSynthesis.cancel();
+                    
+                    const utterance = new SpeechSynthesisUtterance(word);
+                    utterance.lang = 'en-US';
+                    utterance.rate = 0.8;
+                    utterance.pitch = 1;
+                    
+                    // 尝试获取英文语音
+                    const voices = speechSynthesis.getVoices();
+                    const englishVoice = voices.find(v => v.lang.includes('en'));
+                    if (englishVoice) {
+                        utterance.voice = englishVoice;
+                    }
+                    
+                    utterance.onend = () => {
+                        document.getElementById('waveContainer').classList.add('hidden');
+                        resolve();
+                    };
+                    
+                    utterance.onerror = () => {
+                        document.getElementById('waveContainer').classList.add('hidden');
+                        resolve();
+                    };
+                    
+                    // 显示波形
+                    document.getElementById('waveContainer').classList.remove('hidden');
+                    speechSynthesis.speak(utterance);
+                } else {
+                    // 不支持语音合成，显示提示
+                    document.getElementById('listenHint').textContent = `🔤 单词: ${word}`;
+                    resolve();
+                }
+            });
+        }
+
+        // ==================== 生成单词卡片 ====================
+        function generateRoundWords() {
+            // 根据等级选择不同的难度
+            let availableWords;
+            if (gameState.level <= 2) {
+                // 简单：只用短单词
+                availableWords = FRUIT_DATA.filter(f => f.word.length <= 5);
+            } else if (gameState.level <= 4) {
+                // 中等：所有单词
+                availableWords = FRUIT_DATA;
+            } else {
+                // 困难：所有单词
+                availableWords = FRUIT_DATA;
+            }
+            
+            // 随机打乱并取4个
+            const shuffled = [...availableWords].sort(() => Math.random() - 0.5);
+            gameState.currentRoundWords = shuffled.slice(0, 4);
+            
+            // 随机选择一个作为目标
+            const targetIndex = Math.floor(Math.random() * 4);
+            gameState.targetWord = gameState.currentRoundWords[targetIndex].word;
+            gameState.hasPlayed = false;
+        }
+
+        // ==================== 渲染卡片 ====================
+        function renderCards() {
+            const container = document.getElementById('cardsContainer');
+            container.innerHTML = '';
+            
+            gameState.currentRoundWords.forEach((item, index) => {
+                const card = document.createElement('div');
+                card.className = 'fruit-card bg-gray-800/80 rounded-2xl p-4 text-center border-2 border-gray-700';
+                card.dataset.word = item.word;
+                card.onclick = () => handleCardClick(item, card);
+                
+                card.innerHTML = `
+                    <div class="text-5xl mb-2">${item.emoji}</div>
+                    <div class="text-xl font-bold text-white">${item.word}</div>
+                    <div class="text-sm text-gray-400">${item.hint}</div>
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+
+        // ==================== 播放当前单词 ====================
+        async function playCurrentWord() {
+            if (!gameState.isPlaying || gameState.isProcessing) return;
+            
+            if (!gameState.hasPlayed) {
+                // 第一次播放
+                document.getElementById('listenHint').textContent = '🔊 仔细听...';
+                await speakWord(gameState.targetWord);
+                gameState.hasPlayed = true;
+                document.getElementById('listenHint').textContent = '👆 点击正确的单词卡片！';
+            } else {
+                // 重新播放
+                document.getElementById('listenHint').textContent = '🔊 再听一次...';
+                await speakWord(gameState.targetWord);
+                document.getElementById('listenHint').textContent = '👆 点击正确的单词卡片！';
+            }
+        }
+
+        // ==================== 处理卡片点击 ====================
+        async function handleCardClick(item, cardEl) {
+            if (!gameState.isPlaying || gameState.isProcessing || !gameState.hasPlayed) return;
+            
+            gameState.isProcessing = true;
+            
+            // ⭐ 立即禁用所有卡片，防止重复点击
+            document.querySelectorAll('.fruit-card').forEach(card => {
+                card.style.pointerEvents = 'none';
+            });
+            
+            const isCorrect = item.word.toLowerCase() === gameState.targetWord.toLowerCase();
+            
+            if (isCorrect) {
+                // 答对了！
+                cardEl.classList.add('correct');
+                cardEl.classList.add('border-green-500');
+                
+                // 加分
+                const points = 10 * gameState.level;
+                gameState.score += points;
+                
+                // 显示得分动画
+                showScorePopup(cardEl, `+${points}`);
+                
+                // ⭐ 立即显示loading弹窗
+                showFeedback(true, null, true);
+                
+                // 异步获取AI反馈，返回后更新弹窗
+                getAIFeedback(item.word, true).then(feedback => {
+                    showFeedback(true, feedback, false);
+                });
+                
+            } else {
+                // 答错了
+                cardEl.classList.add('wrong');
+                cardEl.classList.add('border-red-500');
+                
+                // 扣分
+                gameState.score = Math.max(0, gameState.score - 5);
+                gameState.lives--;
+                
+                // 找出正确答案并高亮
+                document.querySelectorAll('.fruit-card').forEach(card => {
+                    if (card.dataset.word.toLowerCase() === gameState.targetWord.toLowerCase()) {
+                        card.classList.add('border-green-500');
+                    }
+                });
+                
+                // ⭐ 立即显示loading弹窗
+                showFeedback(false, null, true);
+                
+                // 异步获取AI反馈，返回后更新弹窗
+                getAIFeedback(item.word, false).then(feedback => {
+                    showFeedback(false, feedback, false);
+                });
+                
+                if (gameState.lives <= 0) {
+                    setTimeout(gameOver, 1500);
+                    return;
+                }
+            }
+            
+            updateUI();
+        }
+
+        // ==================== 获取AI反馈 ====================
+        async function getAIFeedback(word, isCorrect) {
+            if (isCorrect) {
+                const prompt = `玩家正确识别了单词 "${word}"，请给出：
+1. 一句简短的赞美（英文）
+2. 这个单词的中文意思
+3. 一个相关的常用短语或例句
+
+格式（JSON）：
+{"praise":"Great job!","meaning":"n. 苹果","example":"An apple a day keeps the doctor away."}`;
+
+                const result = await callAI(prompt);
+                try {
+                    const jsonMatch = result.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) return JSON.parse(jsonMatch[0]);
+                } catch (e) {}
+                return { praise: 'Excellent!', meaning: '正确！', example: 'Well done!' };
+            } else {
+                const prompt = `玩家没有选中单词 "${gameState.targetWord}"，请给出：
+1. 简短的鼓励的话
+2. 这个单词的中文意思
+
+格式（JSON）：
+{"praise":"Don't worry!","meaning":"n. 香蕉，一种黄色的长条水果"}`;
+
+                const result = await callAI(prompt);
+                try {
+                    const jsonMatch = result.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) return JSON.parse(jsonMatch[0]);
+                } catch (e) {}
+                return { praise: 'Try again!', meaning: gameState.currentRoundWords.find(w => w.word === gameState.targetWord)?.hint || '' };
+            }
+        }
+
+        // ==================== 显示反馈弹窗 ====================
+        function showFeedback(isCorrect, feedback, isLoading = false) {
+            const popup = document.getElementById('feedbackPopup');
+            const emoji = document.getElementById('feedbackEmoji');
+            const title = document.getElementById('feedbackTitle');
+            const content = document.getElementById('feedbackContent');
+            const continueBtn = popup.querySelector('button');
+            
+            // ⭐ loading状态
+            if (isLoading) {
+                emoji.textContent = '🤔';
+                title.textContent = 'AI思考中...';
+                title.className = 'text-xl font-bold text-yellow-400 text-center mb-2';
+                content.innerHTML = `
+                    <div class="flex justify-center items-center gap-1 py-4">
+                        <div class="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style="animation-delay: 0s"></div>
+                        <div class="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                        <div class="w-3 h-3 bg-purple-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                    </div>
+                `;
+                // loading时隐藏继续按钮
+                continueBtn.classList.add('hidden');
+                popup.classList.remove('hidden');
+                return;
+            }
+            
+            // ⭐ 正常显示结果
+            if (isCorrect) {
+                emoji.textContent = '🎉';
+                title.textContent = feedback.praise || '太棒了！';
+                title.className = 'text-xl font-bold text-green-400 text-center mb-2';
+                content.innerHTML = `
+                    <p class="mb-2">📚 ${feedback.meaning || ''}</p>
+                    <p class="text-sm opacity-75">📝 ${feedback.example || ''}</p>
+                `;
+            } else {
+                emoji.textContent = '💪';
+                title.textContent = feedback.praise || '加油！';
+                title.className = 'text-xl font-bold text-yellow-400 text-center mb-2';
+                content.innerHTML = `
+                    <p>正确答案是: <span class="text-green-400 font-bold">${gameState.targetWord}</span></p>
+                    <p class="mt-2 text-sm opacity-75">📚 ${feedback.meaning || ''}</p>
+                `;
+            }
+            
+            // 显示继续按钮
+            continueBtn.classList.remove('hidden');
+            popup.classList.remove('hidden');
+        }
+
+        // ⭐ 关闭反馈弹窗并重置状态
+        function closeFeedback() {
+            const popup = document.getElementById('feedbackPopup');
+            popup.classList.add('hidden');
+            
+            // 重置提示区域
+            document.getElementById('listenHint').textContent = '👆 点击正确的单词卡片！';
+            
+            // 继续下一轮（重置卡片状态等）
+            nextRound();
+        }
+
+        // ==================== 下一轮 ====================
+        function nextRound() {
+            gameState.isProcessing = false;
+            
+            // ⭐ 重新启用所有卡片点击
+            document.querySelectorAll('.fruit-card').forEach(card => {
+                card.style.pointerEvents = 'auto';
+            });
+            
+            // 检查升级
+            if (gameState.score >= gameState.level * 100) {
+                gameState.level++;
+                showLevelUp();
+            }
+            
+            // 生成新单词
+            generateRoundWords();
+            renderCards();
+            updateUI();
+            
+            // 自动播放语音
+            setTimeout(() => {
+                playCurrentWord();
+            }, 500);
+        }
+
+        // ==================== 显示得分动画 ====================
+        function showScorePopup(cardEl, text) {
+            const popup = document.createElement('div');
+            popup.className = 'score-popup';
+            popup.textContent = text;
+            popup.style.left = cardEl.offsetLeft + cardEl.offsetWidth / 2 + 'px';
+            popup.style.top = cardEl.offsetTop + 'px';
+            popup.style.color = '#ffd700';
+            cardEl.parentElement.appendChild(popup);
+            setTimeout(() => popup.remove(), 1000);
+        }
+
+        // ==================== 显示升级 ====================
+        function showLevelUp() {
+            const modal = document.getElementById('gameModal');
+            const emoji = document.getElementById('modalEmoji');
+            const title = document.getElementById('modalTitle');
+            const text = document.getElementById('modalText');
+            
+            emoji.textContent = '🎊';
+            title.textContent = `升级到 ${gameState.level} 级！`;
+            text.textContent = `难度提升，单词会更复杂哦！`;
+            
+            document.getElementById('startBtn').textContent = '继续 →';
+            document.getElementById('startBtn').onclick = () => {
+                modal.classList.add('hidden');
+            };
+            
+            modal.classList.remove('hidden');
+        }
+
+        // ==================== 游戏控制 ====================
+        function startGame() {
+            gameState = {
+                score: 0,
+                level: 1,
+                lives: 3,
+                isPlaying: true,
+                currentRoundWords: [],
+                targetWord: '',
+                hasPlayed: false,
+                isProcessing: false
+            };
+            
+            document.getElementById('gameModal').classList.add('hidden');
+            document.getElementById('aiFeedback').classList.add('hidden');
+            
+            // 生成第一轮
+            generateRoundWords();
+            renderCards();
+            updateUI();
+            
+            // 延迟播放语音，让用户准备好
+            setTimeout(() => {
+                playCurrentWord();
+            }, 1000);
+        }
+
+        function gameOver() {
+            gameState.isPlaying = false;
+            
+            // 显示结束弹窗
+            const modal = document.getElementById('gameModal');
+            document.getElementById('modalEmoji').textContent = '😢';
+            document.getElementById('modalTitle').textContent = '游戏结束！';
+            document.getElementById('modalText').textContent = `最终得分: ${gameState.score} | 达到等级: ${gameState.level}`;
+            document.getElementById('startBtn').textContent = '🔄 再来一局';
+            document.getElementById('startBtn').onclick = startGame;
+            
+            // 获取AI鼓励
+            callAI(`玩家在听音识词英语游戏中达到${gameState.level}级，请给出一句简短的鼓励的话（中文，20字以内）：`).then(response => {
+                const feedbackEl = document.getElementById('aiFeedback');
+                feedbackEl.classList.remove('hidden');
+                feedbackEl.innerHTML = `💬 ${response.trim()}`;
+            });
+            
+            modal.classList.remove('hidden');
+        }
+
+        function updateUI() {
+            document.getElementById('score').textContent = gameState.score;
+            document.getElementById('level').textContent = gameState.level;
+            document.getElementById('lives').textContent = '❤️'.repeat(gameState.lives);
+            
+            if (!gameState.hasPlayed) {
+                document.getElementById('listenHint').textContent = '点击🔊按钮听AI读单词';
+            }
+        }
+
+        // 预加载语音
+        if ('speechSynthesis' in window) {
+            speechSynthesis.getVoices();
+        }
+        
+        // 初始渲染
+        document.getElementById('cardsContainer').innerHTML = '<div class="col-span-4 text-center text-gray-500 py-10">点击开始游戏...</div>';
+    </script>
+</body>
+</html>
